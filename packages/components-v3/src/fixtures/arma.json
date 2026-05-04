@@ -1,0 +1,54 @@
+{
+  "lemma": "arma",
+  "lang": "Latin",
+  "langCode": "lat",
+  "selectedText": "Arma",
+  "recognized": true,
+  "pos": [
+    { "kind": "primary", "label": "Noun" },
+    { "kind": "feature", "label": "Neuter" },
+    { "kind": "feature", "label": "Plural" },
+    { "kind": "feature", "label": "2nd declension" }
+  ],
+  "morph": [
+    {
+      "lemma": "arma, -ōrum",
+      "meta": "noun · neuter · 2nd",
+      "expanded": true,
+      "rows": [
+        { "label": "Root",   "value": "arm-",                                "lang": true },
+        { "label": "Ending", "value": "-a",                                  "lang": true },
+        { "label": "Case",   "value": "nominative · accusative · vocative", "lang": false },
+        { "label": "Number", "value": "plural",                              "lang": false },
+        { "label": "Gender", "value": "neuter",                              "lang": false }
+      ]
+    },
+    {
+      "lemma": "armō, -āre",
+      "meta": "verb · 1st conj. (variant)",
+      "expanded": false,
+      "rows": []
+    }
+  ],
+  "definitions": [
+    "arms, weapons, armor — especially those of a warrior or soldier.",
+    "war, battle, strife; military power or force.",
+    "tools, implements, equipment <em>(esp. for farming or nautical use)</em>."
+  ],
+  "citation": {
+    "label": "In context",
+    "text": "<mark>Arma</mark> virumque cano, Troiae qui primus ab oris Italiam, fato profugus, Laviniaque venit litora…",
+    "source": "— Virgil, <em>Aeneid</em> 1.1",
+    "link": "#"
+  },
+  "principalParts": [
+    { "label": "Root",        "value": "arm-",                  "lang": true },
+    { "label": "Ending",      "value": "-a",                    "lang": true },
+    { "label": "Declension",  "value": "2nd · neuter",          "lang": false },
+    { "label": "Frequency",   "value": "★★★★★ (very common)",  "lang": false }
+  ],
+  "providers": [
+    { "name": "Lewis & Short, 1879", "scope": "definitions · morph" },
+    { "name": "Whitaker's WORDS",     "scope": "morph" }
+  ]
+}

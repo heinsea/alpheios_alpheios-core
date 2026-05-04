@@ -1,0 +1,51 @@
+{
+  "list": {
+    "groups": [
+      {
+        "id": "lat", "name": "Latin", "expanded": true, "count": 24, "sort": "A–Z",
+        "words": [
+          { "form": "arma",     "pos": "noun · neuter · plural",         "ctx": 3 },
+          { "form": "audeō",    "pos": "verb · 2nd · semi-deponent",      "ctx": 1 },
+          { "form": "bellum",   "pos": "noun · neuter",                   "ctx": 5 },
+          { "form": "cano",     "pos": "verb · 3rd",                       "ctx": 2 },
+          { "form": "fātum",    "pos": "noun · neuter",                   "ctx": 4 },
+          { "form": "profugus", "pos": "adj · 1st/2nd",                    "ctx": 1, "selected": true },
+          { "form": "Trōia",    "pos": "noun · feminine",                 "ctx": 2 },
+          { "form": "vir",      "pos": "noun · masculine",                "ctx": 3 }
+        ]
+      },
+      { "id": "grc", "name": "Ancient Greek", "expanded": false, "count": 12, "sort": "A–Z", "words": [] },
+      { "id": "ara", "name": "Arabic",        "expanded": false, "count": 3,  "sort": "Recent", "words": [] }
+    ],
+    "footerMeta": "39 saved · 3 languages"
+  },
+  "context": {
+    "word": "arma",
+    "lang": "Latin",
+    "count": 3,
+    "items": [
+      {
+        "label": "Context · 1",
+        "when": "added 2 days ago",
+        "quote": "<mark>Arma</mark> virumque cano, Troiae qui primus ab oris Italiam, fato profugus, Laviniaque venit litora…",
+        "source": "— Virgil, <em>Aeneid</em> 1.1",
+        "link": "#"
+      },
+      {
+        "label": "Context · 2",
+        "when": "added last week",
+        "quote": "Sumite materiam vestris, qui scribitis, aequam viribus, et versate diu, quid ferre recusent, quid valeant umeri… <mark>arma</mark> minora viris.",
+        "source": "— Horace, <em>Ars Poetica</em> 38",
+        "link": "#"
+      },
+      {
+        "label": "Context · 3",
+        "when": "added Apr 12",
+        "quote": "Sed iam <mark>arma</mark> ipsa ferarum vis et impetus suos vincere…",
+        "source": "— Cicero, <em>De Officiis</em> 1.34",
+        "link": "#"
+      }
+    ],
+    "footerMeta": "arma · Latin · 3 contexts"
+  }
+}

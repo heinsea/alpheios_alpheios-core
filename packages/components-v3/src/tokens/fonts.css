@@ -1,0 +1,70 @@
+/*
+ * Font setup for Scholarly Glass v3.
+ *
+ * Inter — UI body / label
+ * Lato  — classical-language target text (Latin, Greek transliteration, etc.)
+ *         and the brand mark (Greek α; Lato's Greek subset reads as
+ *         classical Greek typography rather than Latinised).
+ *
+ * Material Symbols are NOT loaded as a webfont. Pages with strict
+ * `style-src` CSP block fonts.googleapis.com, leaving icon-button text like
+ * "menu_book" rendered as literal characters. We use the Icon.vue primitive
+ * (inline SVG, currentColor) instead.
+ *
+ * The CDN @import keeps Stage 1-3 zero-config. Stage 5 will swap to
+ * self-hosted woff2 in dist/support/fonts so the extension also works behind
+ * enterprise proxies that block fonts.googleapis.com.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lato:ital,wght@0,400;0,700;1,400&display=swap');
+
+/* Default UI text family. Components scope this via a class so the host
+ * page's body styles never bleed in (and we never bleed out into the host).
+ */
+.alpheios-v3-scope {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Classical-language text (target word, citation quotes). Apply to whichever
+ * element holds Latin / Greek / Arabic content via class lang-classical or
+ * `[data-lang]` attribute. Stage 4 will wire `dir="rtl"` automatically for
+ * RTL languages by reading data-lang from the data adapter.
+ */
+.alpheios-v3-scope .lang-classical,
+.alpheios-v3-scope [data-lang] {
+  font-family: 'Lato', 'Noto Serif', serif;
+}
+
+/*
+ * Anchor reset inside the scope. Native browser blue conflicts with the
+ * monochrome / tertiary-only palette; consumers can override per-component
+ * (e.g. ElevatedCard footer "View Full →" renders as black with a 1px
+ * underline that brightens on hover).
+ */
+.alpheios-v3-scope a {
+  color: var(--on-surface);
+  text-decoration: none;
+  border-bottom: 1px solid var(--outline-variant);
+  transition: border-color var(--motion-fast), color var(--motion-fast);
+}
+.alpheios-v3-scope a:hover {
+  border-bottom-color: var(--on-surface);
+}
+.alpheios-v3-scope a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-bottom-color: transparent;
+}
+
+/* Brand mark (Greek α) — Lato's Greek glyphs read more authentically
+ * classical than Inter's. Use this class on the swatch. */
+.alpheios-v3-scope .alph-brand {
+  font-family: 'Lato', 'Noto Serif', 'Times New Roman', serif;
+  font-weight: 700;
+  line-height: 1;
+}

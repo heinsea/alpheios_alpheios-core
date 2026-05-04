@@ -1,0 +1,80 @@
+{
+  "usage": {
+    "word": "arma",
+    "totalQuotes": 42,
+    "authorsCount": 5,
+    "filterAuthor": "all",
+    "authorChips": [
+      { "id": "all",     "label": "All authors", "count": null },
+      { "id": "virgil",  "label": "Virgil",      "count": 18 },
+      { "id": "cicero",  "label": "Cicero",      "count": 9  },
+      { "id": "caesar",  "label": "Caesar",      "count": 7  },
+      { "id": "tacitus", "label": "Tacitus",     "count": 5  },
+      { "id": "horace",  "label": "Horace",      "count": 3  }
+    ],
+    "groups": [
+      {
+        "author": "Virgil",
+        "meta": "70–19 BC · 3 works",
+        "remaining": 16,
+        "quotes": [
+          {
+            "text": "<mark>Arma</mark> virumque cano, Troiae qui primus ab oris Italiam, fato profugus, Laviniaque venit litora.",
+            "ref": "<em>Aeneid</em> 1.1", "link": "#"
+          },
+          {
+            "text": "…saevit medio in certamine Mavors caelatus ferro, tristesque ex aethere Dirae, et scissa gaudens vadit Discordia palla, quam cum sanguineo sequitur Bellona flagello. Pallas <mark>arma</mark> rapit…",
+            "ref": "<em>Aeneid</em> 8.700", "link": "#"
+          }
+        ]
+      },
+      {
+        "author": "Cicero",
+        "meta": "106–43 BC · 5 works",
+        "remaining": 8,
+        "quotes": [
+          {
+            "text": "Sed iam <mark>arma</mark> ipsa ferarum vis et impetus suos vincere…",
+            "ref": "<em>De Officiis</em> 1.34", "link": "#"
+          }
+        ]
+      }
+    ],
+    "footerMeta": "arma · Latin · 42 quotes · 5 authors"
+  },
+  "grammar": {
+    "language": "Latin",
+    "sourceCount": 4,
+    "linkedFrom": "Linked from <em class=\"lang-classical\">arma</em> · §47 — Cases of nouns: nominative",
+    "sources": [
+      { "id": "ag",   "title": "Allen &amp; Greenough's New Latin Grammar", "meta": "1903 · 642 sections · current", "active": true  },
+      { "id": "benn", "title": "Bennett's New Latin Grammar",                "meta": "1908 · 412 sections",            "active": false },
+      { "id": "gl",   "title": "Gildersleeve &amp; Lodge",                   "meta": "1895 · 528 sections",            "active": false }
+    ],
+    "reading": {
+      "anchor": "A&amp;G §47 · Nominative case",
+      "title": "The Nominative Case",
+      "blocks": [
+        { "type": "p", "html": "The nominative is the case of the <span class=\"alph-resources__em\">subject</span>. The subject of a finite verb is in the nominative case, denoting the person or thing that performs the action of the verb, or that is in the state described by the verb. <a class=\"alph-resources__crossref\" href=\"#\">See §340 for predicate nominative.</a>" },
+        { "type": "blockquote", "html": "<span class=\"lang-classical\">Mīlitēs in castra revertuntur.</span><br />The soldiers return to camp." },
+        { "type": "p", "html": "Some Latin nouns are used predominantly or exclusively in the plural — these are called <span class=\"alph-resources__em\">pluralia tantum</span>. <span class=\"lang-classical\" style=\"font-style:italic;\">Arma</span>, <em>weapons</em>, is one such noun: in classical prose and verse it appears almost exclusively in the plural, the singular being a rare reconstruction." }
+      ]
+    },
+    "footerMeta": "A&amp;G §47 · 1 of 642"
+  },
+  "tree": {
+    "ref": "Aeneid 1 · sentence 1 of 756",
+    "totalSentences": 756,
+    "currentIndex": 1,
+    "textStrip": "<span class=\"alph-resources__hl\">Arma</span> virumque cano, Troiae qui primus ab oris…",
+    "footerMeta": "Aeneid 1.1 · Perseus treebank · v2.1",
+    "nodes": [
+      { "id": "cano",   "x": 270, "y": 56,  "form": "cano",   "tag": "VERB · 1SG",     "isRoot": true,  "isMatch": false, "edgeLabel": "ROOT" },
+      { "id": "arma",   "x": 130, "y": 136, "form": "arma",   "tag": "NOUN · ACC.PL",  "isRoot": false, "isMatch": true,  "parent": "cano", "edgeLabel": "OBJ" },
+      { "id": "virum",  "x": 270, "y": 136, "form": "virum",  "tag": "NOUN · ACC.SG",  "isRoot": false, "isMatch": false, "parent": "cano", "edgeLabel": "OBJ" },
+      { "id": "que",    "x": 410, "y": 136, "form": "-que",   "tag": "CONJ",           "isRoot": false, "isMatch": false, "parent": "cano", "edgeLabel": "OBJ" },
+      { "id": "troiae", "x": 130, "y": 216, "form": "Troiae", "tag": "NOUN · GEN.SG",  "isRoot": false, "isMatch": false, "parent": "arma", "edgeLabel": "ATR" },
+      { "id": "qui",    "x": 410, "y": 216, "form": "qui",    "tag": "PRON · NOM",     "isRoot": false, "isMatch": false, "parent": "que",  "edgeLabel": "CO" }
+    ]
+  }
+}
