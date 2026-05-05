@@ -6,15 +6,14 @@
  * router fills from `uiStore.state.page`):
  *   usage    — quotes grouped by author, chip filters
  *   grammar  — list of grammar sources → reading view
- *   tree     — dependency tree viewer (SVG nodes from fixture)
+ *   tree     — dependency tree viewer or explicit metadata state
  *
  * Rationale: the three modes share the same panel chrome (topbar +
  * scroll + footer) and similar DOM density, so collapsing them keeps
  * the routing layer flat at a small CSS cost.
  */
 
-import { ref, computed } from 'vue'
-import Button from '../primitives/Button.vue'
+import { ref, computed, watch } from 'vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
 
@@ -24,30 +23,40 @@ const props = defineProps({
 })
 
 /* ─── Usage mode local state ─── */
-const usage = computed(() => props.data.usage || { authorChips: [], groups: [], word: '', totalQuotes: 0, footerMeta: '' })
+const usage = computed(() => props.data.usage || { authorChips: [], groups: [], word: '', totalQuotes: 0, footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
 const authorFilter = ref(usage.value?.filterAuthor ?? 'all')
 const sortLabel = ref('by date')
 const genreLabel = ref('any')
 
 /* ─── Grammar mode local state ─── */
-const grammar = computed(() => props.data.grammar || { sources: [], reading: { blocks: [] }, language: '', sourceCount: 0, linkedFrom: '', footerMeta: '' })
-const activeSourceId = ref(grammar.value?.sources.find(s => s.active)?.id ?? grammar.value?.sources[0]?.id ?? '')
+const grammar = computed(() => props.data.grammar || { sources: [], reading: { blocks: [] }, language: '', sourceCount: 0, linkedFrom: '', footerMeta: '', browserUrl: '' })
+const grammarFrame = ref(null)
+const grammarSrc = ref(grammar.value.browserUrl || '')
+watch(() => grammar.value.browserUrl, (url) => { if (url) grammarSrc.value = url }, { immediate: true })
 
 /* ─── Tree mode local state ─── */
-const tree = computed(() => props.data.tree || { nodes: [], footerMeta: '' })
-const zoom = ref(1)
-function zoomIn  () { zoom.value = Math.min(2,   zoom.value + 0.1) }
-function zoomOut () { zoom.value = Math.max(0.5, zoom.value - 0.1) }
-function zoomFit () { zoom.value = 1 }
+const tree = computed(() => props.data.tree || { nodes: [], footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
 
-/* ─── Edges derived from `parent` ─── */
-const treeEdges = computed(() => {
-  if (!tree.value) return []
-  const byId = Object.fromEntries(tree.value.nodes.map(n => [n.id, n]))
-  return tree.value.nodes.filter(n => n.parent).map(n => ({
-    from: byId[n.parent], to: n, label: n.edgeLabel
-  }))
-})
+function frameBack (frameRef, fallbackUrl) {
+  try { frameRef.value?.contentWindow?.history?.go(-1) } catch { if (fallbackUrl) grammarSrc.value = fallbackUrl }
+}
+function frameForward (frameRef) {
+  try { frameRef.value?.contentWindow?.history?.go(1) } catch { /* cross-origin fallback: no-op */ }
+}
+function frameReload (frameRef, srcRef) {
+  try {
+    frameRef.value?.contentWindow?.location?.reload()
+  } catch {
+    if (srcRef && srcRef.value) {
+      const url = srcRef.value
+      srcRef.value = ''
+      requestAnimationFrame(() => { srcRef.value = url })
+    }
+  }
+}
+function grammarHome () {
+  if (grammar.value.browserUrl) grammarSrc.value = grammar.value.browserUrl
+}
 
 const footerMeta = computed(() => {
   if (props.mode === 'usage')   return usage.value?.footerMeta
@@ -106,41 +115,65 @@ defineExpose({ footerMeta })
           View {{ g.remaining }} more from {{ g.author }} →
         </button>
       </section>
+
+      <div v-if="!usage.groups.length" class="alph-resources__empty">
+        <h3>No usage examples found</h3>
+        <p v-if="usage.isOfficialTextsPage">
+          This Alpheios Texts page is connected. Select a Latin word in the text, then return here after lookup completes.
+        </p>
+        <p v-else>
+          Word Usage is most useful on Alpheios Texts pages. Open the supported reader as the current page, select a word, and v3 will use the page's live AppController state.
+        </p>
+        <a v-if="!usage.isOfficialTextsPage && usage.officialReaderUrl" :href="usage.officialReaderUrl" target="_blank" rel="noopener" class="alph-resources__reader-link">
+          Open supported reader
+        </a>
+      </div>
     </template>
 
     <!-- ============ GRAMMAR ============ -->
     <template v-else-if="mode === 'grammar'">
-      <header class="alph-resources__h-section alph-resources__h-section--row">
-        <span>{{ grammar.language }} grammars · {{ grammar.sourceCount }} sources</span>
-        <Button variant="icon" aria-label="Tune"><Icon name="tune" :size="14" /></Button>
+      <header class="alph-resources__browser-toolbar">
+        <div class="alph-resources__browser-controls">
+          <button type="button" class="alph-resources__tool-button" aria-label="Grammar home" @click="grammarHome">
+            <Icon name="home" :size="14" />
+          </button>
+          <button type="button" class="alph-resources__tool-button" aria-label="Back" @click="frameBack(grammarFrame, grammar.browserUrl)">
+            <Icon name="arrow_back" :size="14" />
+          </button>
+          <button type="button" class="alph-resources__tool-button" aria-label="Forward" @click="frameForward(grammarFrame)">
+            <Icon name="arrow_forward" :size="14" />
+          </button>
+          <button type="button" class="alph-resources__tool-button" aria-label="Reload" @click="frameReload(grammarFrame, grammarSrc)">
+            <Icon name="refresh" :size="14" />
+          </button>
+        </div>
+        <div class="alph-resources__browser-title">
+          <span>Allen and Greenough</span>
+          <small>{{ grammar.language || 'Latin' }} grammar</small>
+        </div>
+        <a
+          :href="grammar.browserUrl"
+          target="_blank"
+          rel="noopener"
+          class="alph-resources__browser-open"
+          aria-label="Open grammar in a new tab"
+        >
+          <Icon name="open_in_new" :size="14" />
+        </a>
       </header>
 
-      <div class="alph-resources__source-list">
-        <article v-for="s in grammar.sources" :key="s.id"
-                 class="alph-resources__source"
-                 :class="{ 'alph-resources__source--active': activeSourceId === s.id }"
-                 @click="activeSourceId = s.id">
-          <span class="alph-resources__source-icon"><Icon name="menu_book" :size="16" /></span>
-          <div class="alph-resources__source-body">
-            <p class="alph-resources__source-title" v-html="s.title" />
-            <p class="alph-resources__source-meta" v-html="s.meta" />
-          </div>
-          <Icon name="chevron_right" :size="14" />
-        </article>
+      <div v-if="grammar.browserUrl" class="alph-resources__grammar-browser">
+        <iframe
+          ref="grammarFrame"
+          :src="grammarSrc"
+          class="alph-resources__grammar-iframe"
+          title="Allen and Greenough grammar"
+        />
       </div>
 
-      <div class="alph-resources__toc-jump">
-        <Icon name="link" :size="12" />
-        <span v-html="grammar.linkedFrom" />
-      </div>
-
-      <div class="alph-resources__reading">
-        <span class="alph-resources__anchor" v-html="grammar.reading?.anchor" />
-        <h3>{{ grammar.reading?.title }}</h3>
-        <template v-for="(b, i) in (grammar.reading?.blocks || [])" :key="i">
-          <p   v-if="b.type === 'p'"          v-html="b.html" />
-          <blockquote v-else-if="b.type === 'blockquote'" v-html="b.html" />
-        </template>
+      <div v-else class="alph-resources__empty">
+        <h3>No grammar source found</h3>
+        <p>Alpheios did not return a grammar resource for the current lookup.</p>
       </div>
     </template>
 
@@ -159,57 +192,30 @@ defineExpose({ footerMeta })
         />
       </template>
 
-      <!-- Fixture SVG tree (no live data) -->
+      <!-- Explicit no-metadata state (real lookup happened, but page has no treebank metadata) -->
+      <template v-else-if="tree.kind === 'no-metadata'">
+        <div class="alph-resources__tree-empty">
+          <h3>No treebank metadata on this page</h3>
+          <p>
+            Treebank view becomes available only when the current page exposes Arethusa metadata.
+            Open the supported reader as the current page, select a word in the text, then return here.
+          </p>
+          <a v-if="!tree.isOfficialTextsPage && tree.officialReaderUrl" :href="tree.officialReaderUrl" target="_blank" rel="noopener" class="alph-resources__reader-link">
+            Open supported reader
+          </a>
+        </div>
+      </template>
+
+      <!-- Explicit idle state (no live data yet) -->
       <template v-else>
-        <div class="alph-resources__tree-toolbar">
-          <div class="alph-resources__pager">
-            <button title="First sentence"><Icon name="first_page" :size="14" /></button>
-            <button title="Previous"><Icon name="chevron_left" :size="14" /></button>
-          </div>
-          <span class="alph-resources__sentence-id" v-html="tree.ref" />
-          <div class="alph-resources__pager">
-            <button title="Next"><Icon name="chevron_right" :size="14" /></button>
-            <button title="Last sentence"><Icon name="last_page" :size="14" /></button>
-          </div>
-          <div class="alph-resources__zoom">
-            <button title="Zoom in" @click="zoomIn"><Icon name="add" :size="12" /></button>
-            <button title="Zoom out" @click="zoomOut"><Icon name="open_in_full" :size="12" /></button>
-            <button title="Fit" @click="zoomFit"><Icon name="fit_screen" :size="12" /></button>
-          </div>
+        <div class="alph-resources__tree-empty">
+          <h3>No treebank loaded</h3>
+          <p v-if="tree.isOfficialTextsPage">Select a word on this Alpheios Texts page to load a live treebank.</p>
+          <p v-else>Treebank is page-metadata driven. Use a supported Alpheios Texts page as the current page to load a live diagram.</p>
+          <a v-if="!tree.isOfficialTextsPage && tree.officialReaderUrl" :href="tree.officialReaderUrl" target="_blank" rel="noopener" class="alph-resources__reader-link">
+            Open supported reader
+          </a>
         </div>
-
-        <div class="alph-resources__tree-canvas">
-          <div class="alph-resources__tree-svg-wrap" :style="{ transform: `scale(${zoom})` }">
-            <svg width="540" height="280" viewBox="0 0 540 280" xmlns="http://www.w3.org/2000/svg" class="alph-resources__tree-svg">
-              <!-- edges -->
-              <g stroke="var(--outline-variant)" stroke-width="1.2" fill="none">
-                <path v-for="(e, i) in treeEdges" :key="i"
-                      :d="`M ${e.from.x} ${e.from.y + 22} L ${e.to.x} ${e.to.y - 22}`" />
-              </g>
-              <!-- edge labels -->
-              <g font-size="9" fill="var(--on-surface-variant)" font-weight="500" text-anchor="middle">
-                <text v-for="(e, i) in treeEdges" :key="i"
-                      :x="(e.from.x + e.to.x) / 2"
-                      :y="(e.from.y + e.to.y) / 2 + 4">{{ e.label }}</text>
-              </g>
-              <!-- nodes -->
-              <g v-for="n in tree.nodes" :key="n.id">
-                <rect :x="n.x - 48" :y="n.y - 22" width="96" height="44" rx="8"
-                      :fill="n.isRoot ? 'var(--tertiary)' : 'var(--surface-container-lowest)'"
-                      :stroke="n.isRoot ? 'var(--tertiary)' : (n.isMatch ? 'var(--on-surface)' : 'var(--outline-variant)')"
-                      :stroke-width="n.isMatch && !n.isRoot ? 1.5 : 1" />
-                <text :x="n.x" :y="n.y - 2" text-anchor="middle"
-                      font-family="Lato, serif" font-size="14" font-weight="700"
-                      :fill="n.isRoot ? 'var(--on-tertiary)' : 'var(--on-surface)'">{{ n.form }}</text>
-                <text :x="n.x" :y="n.y + 12" text-anchor="middle"
-                      font-size="9" letter-spacing="0.5"
-                      :fill="n.isRoot ? 'rgba(255,255,255,0.85)' : 'var(--on-surface-variant)'">{{ n.tag }}</text>
-              </g>
-            </svg>
-          </div>
-        </div>
-
-        <div class="alph-resources__tree-strip" v-html="tree.textStrip" />
       </template>
     </template>
 
@@ -300,7 +306,124 @@ defineExpose({ footerMeta })
 }
 .alph-resources__show-more:hover { border-color: var(--on-surface); }
 
+.alph-resources__empty {
+  margin: 12px;
+  padding: 14px;
+  border: 1px dashed var(--outline-variant);
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+}
+.alph-resources__empty h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.alph-resources__empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--on-surface-variant);
+}
+.alph-resources__reader-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 12px;
+  color: var(--on-surface);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+.alph-resources__reader-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 /* ── Grammar ── */
+.alph-resources__browser-toolbar {
+  min-height: 52px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--divider);
+  background: rgba(255, 255, 255, 0.78);
+}
+.alph-resources__browser-controls {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.alph-resources__browser-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.alph-resources__browser-title span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+.alph-resources__browser-title small {
+  font-size: 10px;
+  color: var(--on-surface-variant);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.alph-resources__tool-button,
+.alph-resources__browser-open {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--outline-variant);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.alph-resources__tool-button:hover,
+.alph-resources__browser-open:hover { border-color: var(--on-surface); }
+.alph-resources__tool-link {
+  height: 30px;
+  padding: 0 9px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--outline-variant);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.alph-resources__tool-link:hover { border-color: var(--on-surface); }
+.alph-resources__grammar-browser {
+  padding: 18px 18px 22px;
+  height: calc(100vh - var(--topbar-height) - var(--footer-height) - 52px);
+  min-height: 420px;
+  background: #f6f7f8;
+}
+.alph-resources__grammar-iframe {
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
 .alph-resources__h-section {
   font-size: 10px; font-weight: 600;
   letter-spacing: 0.18em; text-transform: uppercase;
@@ -478,6 +601,26 @@ defineExpose({ footerMeta })
   transition: transform var(--motion-fast);
 }
 .alph-resources__tree-svg { font-family: 'Inter', sans-serif; }
+
+.alph-resources__tree-empty {
+  margin: 12px;
+  padding: 16px;
+  border: 1px dashed var(--outline-variant);
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+}
+.alph-resources__tree-empty h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.alph-resources__tree-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--on-surface-variant);
+}
 
 .alph-resources__tree-iframe {
   width: 100%;

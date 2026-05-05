@@ -136,6 +136,10 @@ defineExpose({ footerMeta, view, backToList })
           <a v-if="item.link" :href="item.link" class="alph-wl__ctx-link">Open source →</a>
         </footer>
       </article>
+
+      <p v-if="!ctx.items.length" class="alph-wl__empty alph-wl__empty--context">
+        No saved context is available for this word yet.
+      </p>
     </template>
   </div>
 </template>
@@ -264,6 +268,7 @@ defineExpose({ footerMeta, view, backToList })
   color: var(--on-surface-variant);
   font-style: italic;
 }
+.alph-wl__empty--context { padding-top: 12px; }
 
 /* context view */
 .alph-wl__ctx-head {

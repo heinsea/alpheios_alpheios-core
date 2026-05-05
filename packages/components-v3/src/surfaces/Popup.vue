@@ -29,14 +29,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'expand', 'add', 'retry', 'login', 'switchLanguage', 'lookupVariants'])
 
 const targetWord = computed(() => {
-  // Prefer live data (data.lemma has the actual queried word) over fixture stubs.
+  // Prefer live data (data.lemma has the actual queried word) over empty-state copy.
   if (props.state === 'loading') return props.data.lemma || props.emptyStates.loading?.lemma || ''
   if (props.state === 'no-result') return props.data.lemma || props.emptyStates.noResult?.lemma || ''
   if (props.state === 'error') return props.data.lemma || props.emptyStates.error?.lemma || ''
   return props.data.selectedText || props.data.lemma || ''
 })
 const targetLang = computed(() => {
-  // Prefer live data.lang over fixture stubs.
+  // Prefer live data.lang over empty-state copy.
   const liveLang = props.data.lang
   if (props.state === 'loading') return liveLang || props.emptyStates.loading?.lang
   if (props.state === 'no-result') return liveLang || props.emptyStates.noResult?.lang
@@ -46,7 +46,7 @@ const targetLang = computed(() => {
 const errorBanner = computed(() => props.emptyStates.error?.banner)
 const noResultData = computed(() => {
   const raw = props.emptyStates.noResult || {}
-  // Substitute the fixture's placeholder word with the actual queried word.
+  // Substitute placeholder copy with the actual queried word.
   if (targetWord.value && raw.desc) {
     const escaped = raw.lemma ? raw.lemma.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : ''
     const re = escaped ? new RegExp(escaped, 'g') : null

@@ -10,7 +10,7 @@
  *
  * Stage 0:    App, MountPlaceholder
  * Stage 1:    tokens / fonts (CSS-only) + 9 primitives
- * Stage 2:    4 surfaces + LookupPage + ui-store + fixtures
+ * Stage 2:    4 surfaces + LookupPage + ui-store
  * Stage 3:    + 6 more pages (Morph, Inflections, WordList, Resources,
  *             Settings, Auth) routed by `uiStore.state.page` in App.vue.
  *             Resources is one component for the Usage / Grammar / Tree
@@ -60,7 +60,7 @@ import { uiStore, applyUrlOverrides, SURFACES, PAGES, POPUP_STATES } from './sto
 
 // Composables — Stage 4 data-layer bridges. Sandbox / unit-test consumers
 // can ignore these; pages call `useAppController()` to read injected
-// controller and gracefully fall back to fixtures when it's null.
+// controller and gracefully render explicit empty states when it's null.
 import { APP_CONTROLLER_KEY, useAppController, useStore } from './composables/use-app-controller.js'
 import { useLookup } from './composables/use-lookup.js'
 import { useWordList } from './composables/use-wordlist.js'

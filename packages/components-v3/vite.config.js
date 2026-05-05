@@ -14,10 +14,26 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    {
+      name: 'alpheios-raw-csv',
+      enforce: 'pre',
+      transform (code, id) {
+        if (id.endsWith('.csv')) {
+          return { code: `export default ${JSON.stringify(code)}`, map: null }
+        }
+      }
+    },
+    vue()
+  ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('../inflection-tables/src', import.meta.url)),
+      '@lib': fileURLToPath(new URL('../inflection-tables/lib', import.meta.url)),
+      '@views': fileURLToPath(new URL('../inflection-tables/views', import.meta.url)),
+      'alpheios-inflection-tables': fileURLToPath(new URL('../inflection-tables/index.js', import.meta.url)),
+      'alpheios-data-models': fileURLToPath(new URL('../data-models/src/driver.js', import.meta.url)),
+      'uuid/v4': fileURLToPath(new URL('../../node_modules/uuid/dist/esm-browser/v4.js', import.meta.url))
     }
   },
   build: {

@@ -68,7 +68,9 @@ const ICON_PATHS = {
   chevron_right:    'M9 6l6 6-6 6',
   chevron_left:     'M15 6l-6 6 6 6',
   arrow_back:       'M15 18l-6-6 6-6M21 12H9',
+  arrow_forward:    'M9 18l6-6-6-6M3 12h12',
   arrow_back_ios_new: 'M15 6l-6 6 6 6',
+  home:             'M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10',
   first_page:       'M18 18l-6-6 6-6M7 6v12',
   last_page:        'M6 18l6-6-6-6M17 6v12',
 

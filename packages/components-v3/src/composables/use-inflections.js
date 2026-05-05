@@ -1,6 +1,6 @@
 /**
  * useInflections — bridges alpheios-core's ViewSet / View into a
- * Vue 3-reactive shape matching `fixtures/inflections.json`.
+ * Vue 3-reactive shape consumed by InflectionsPage.
  *
  * Returns `{ matchedData, browserData, hasData, loading }`:
  *   matchedData — table rows/columns/footnotes for the "From lookup" mode
@@ -11,11 +11,12 @@
  * IMPORTANT: View.render() must be called before reading wideView / footnotes.
  * This composable calls it lazily on first access.
  *
- * Sandbox returns null refs so InflectionsPage falls back to fixture.
+ * Sandbox returns null refs so InflectionsPage shows an explicit empty state.
  */
 
 import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
+import InflTablesList from '../data/inflections-browser-tables.json'
 
 export function useInflections () {
   const controller = useAppController()
@@ -34,6 +35,34 @@ export function useInflections () {
   const browserData = ref(null)
   const hasData = ref(false)
   const loading = ref(false)
+
+  function buildBrowser () {
+    const currentCode = store.state.app.currentLanguageCode
+    const language = currentCode === 'grc' ? 'Greek' : 'Latin'
+    const langCode = currentCode === 'grc' ? 'grc' : 'lat'
+    const langTables = InflTablesList[langCode] || {}
+    const posOptions = Object.keys(langTables)
+    const firstPos = posOptions[0] || ''
+    const firstParadigm = firstPos && langTables[firstPos] && langTables[firstPos][0]
+      ? langTables[firstPos][0].title
+      : ''
+
+    browserData.value = {
+      language,
+      languageCode: langCode,
+      languages: ['Latin', 'Greek'],
+      pos: firstPos,
+      posOptions,
+      paradigm: firstParadigm,
+      paradigmOptions: firstPos && langTables[firstPos] ? langTables[firstPos].map(t => t.title) : [],
+      paradigmMeta: firstParadigm ? 'Standard forms from the Alpheios inflection tables.' : 'No standard tables available.',
+      voice: '',
+      mood: '',
+      preview: { columns: [], rows: [] },
+      catalog: InflTablesList,
+      footerMeta: 'Browse inflection tables'
+    }
+  }
 
   /**
    * Extract column headers from a rendered View.
@@ -135,7 +164,7 @@ export function useInflections () {
       }
     } catch {
       loading.value = false
-      // render() failed — leave matchedData as null so fixture is used
+      // render() failed — leave matchedData as null so App.vue shows empty state
       return
     }
 
@@ -173,12 +202,20 @@ export function useInflections () {
     (val) => { if (val) rebuild() }
   ))
 
+  // Consecutive lookups can leave `homonymDataReady` true, so refresh from
+  // lexical request completion as well.
+  unwatchers.push(store.watch(
+    (st) => st.app.lexicalRequest.endTime,
+    (endTime) => { if (endTime) rebuild() }
+  ))
+
   // Initial check
   if (store.state.app.hasInflData) rebuild()
+  buildBrowser()
 
   onScopeDispose(() => {
     unwatchers.forEach(u => { try { u() } catch { /* swallow */ } })
   })
 
-  return { matchedData, browserData, hasData, loading, rebuild }
+  return { matchedData, browserData, hasData, loading, rebuild, buildBrowser }
 }

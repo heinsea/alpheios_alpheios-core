@@ -12,11 +12,13 @@
  * lookup result is present, default to `matched`; otherwise `browser`).
  */
 
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Button from '../primitives/Button.vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
 import Segmented from '../primitives/Segmented.vue'
+import { ViewSetFactory } from 'alpheios-inflection-tables'
+import { Constants } from 'alpheios-data-models'
 
 const props = defineProps({
   data: { type: Object, required: true }
@@ -28,11 +30,11 @@ function toMatched () { mode.value = 'matched' }
 function toBrowser () { mode.value = 'browser' }
 
 /* ─── Matched mode local state ─── */
-const matched = props.data.matched
-const wordClass    = ref(matched.wordClass)        // 'verb' | 'noun'
-const density      = ref(matched.density)          // 'wide' | 'narrow'
-const filterId     = ref(matched.filterChips.find(c => c.active)?.id ?? matched.filterChips[0].id)
-const highlight    = ref(matched.highlightMatches)
+const matched = computed(() => props.data.matched)
+const wordClass    = ref(matched.value.wordClass)        // 'verb' | 'noun'
+const density      = ref(matched.value.density)          // 'wide' | 'narrow'
+const filterId     = ref(matched.value.filterChips.find(c => c.active)?.id ?? matched.value.filterChips[0]?.id ?? 'all')
+const highlight    = ref(matched.value.highlightMatches)
 const wordClassOpts = [
   { value: 'verb', label: 'Verb' },
   { value: 'noun', label: 'Noun' }
@@ -43,18 +45,104 @@ const densityOpts = [
 ]
 
 /* ─── Browser mode local state ─── */
-const browser    = props.data.browser
-const lang       = ref(browser.language)
-const pos        = ref(browser.pos)
-const paradigm   = ref(browser.paradigm)
-const voice      = ref(browser.voice)
-const mood       = ref(browser.mood)
+const browser    = computed(() => props.data.browser)
+const lang       = ref(browser.value.language)
+const pos        = ref(browser.value.pos)
+const paradigm   = ref(browser.value.paradigm)
+const voice      = ref(browser.value.voice)
+const mood       = ref(browser.value.mood)
 const voiceOpts  = ['Active', 'Passive']
 const moodOpts   = ['Indicative', 'Subjunctive', 'Imperative']
+const langCodeMap = { Latin: 'lat', Greek: 'grc' }
+
+const browserCatalog = computed(() => browser.value.catalog || {})
+const activeLangCode = computed(() => langCodeMap[lang.value] || browser.value.languageCode || 'lat')
+const activeLangTables = computed(() => browserCatalog.value[activeLangCode.value] || {})
+const browserPosOptions = computed(() => Object.keys(activeLangTables.value))
+const browserParadigmItems = computed(() => activeLangTables.value[pos.value] || [])
+const browserParadigmOptions = computed(() => browserParadigmItems.value.map(t => t.title))
+const activeParadigmItem = computed(() =>
+  browserParadigmItems.value.find(t => t.title === paradigm.value) || browserParadigmItems.value[0] || null
+)
+
+function extractStandardColumns (view) {
+  if (!view) return []
+  try {
+    if (view.table && Array.isArray(view.table.headers) && view.table.headers.length) {
+      const headerRow = view.table.headers[0]
+      if (headerRow && Array.isArray(headerRow.cells)) {
+        return ['', ...headerRow.cells.map(cell => cell.value || cell.title || '')]
+      }
+    }
+    if (view.wideView && view.wideView.rows && view.wideView.rows.length) {
+      const firstRow = view.wideView.rows[0]
+      return (firstRow.cells || []).map(cell => cell.value || '')
+    }
+  } catch { /* use fallback */ }
+  return browser.value.preview?.columns || []
+}
+
+function extractStandardRows (view) {
+  if (!view || !view.wideView || !Array.isArray(view.wideView.rows)) return []
+  return view.wideView.rows.map((row, rowIndex) => {
+    const cells = row.cells || []
+    const labelCells = cells.filter(c => !c.isDataCell)
+    const dataCells = cells.filter(c => c.isDataCell)
+    return {
+      head: labelCells.map(c => c.value || '').filter(Boolean).join(' · ') || `Row ${rowIndex + 1}`,
+      cells: dataCells.map(cell => {
+        const morph = (cell.morphemes && cell.morphemes[0]) || cell
+        return { value: morph.value || cell.value || '', lang: true }
+      })
+    }
+  })
+}
+
+const browserPreview = computed(() => {
+  const item = activeParadigmItem.value
+  if (!item) return browser.value.preview || { columns: [], rows: [] }
+  try {
+    const langID = activeLangCode.value === 'grc'
+      ? Constants.LANG_GREEK
+      : Constants.LANG_LATIN
+    const view = ViewSetFactory.getStandardForm({ ...item, langID })
+    if (!view) return browser.value.preview || { columns: [], rows: [] }
+    if (view.isRenderable !== false && !view.isRendered) view.render()
+    return {
+      columns: extractStandardColumns(view),
+      rows: extractStandardRows(view)
+    }
+  } catch {
+    return browser.value.preview || { columns: [], rows: [] }
+  }
+})
 
 const footerMeta = computed(() =>
-  mode.value === 'matched' ? matched.footerMeta : browser.footerMeta
+  mode.value === 'matched' ? matched.value.footerMeta : browser.value.footerMeta
 )
+watch(matched, (m) => {
+  wordClass.value = m.wordClass
+  density.value = m.density
+  filterId.value = m.filterChips.find(c => c.active)?.id ?? m.filterChips[0]?.id ?? 'all'
+  highlight.value = m.highlightMatches
+})
+watch(browser, (b) => {
+  lang.value = b.language
+  pos.value = b.pos
+  paradigm.value = b.paradigm
+  voice.value = b.voice
+  mood.value = b.mood
+})
+watch(lang, () => {
+  const nextPos = browserPosOptions.value[0] || ''
+  pos.value = nextPos
+  paradigm.value = browserParadigmOptions.value[0] || ''
+})
+watch(pos, () => {
+  if (!browserParadigmOptions.value.includes(paradigm.value)) {
+    paradigm.value = browserParadigmOptions.value[0] || ''
+  }
+})
 defineExpose({ footerMeta, mode })
 </script>
 
@@ -150,7 +238,7 @@ defineExpose({ footerMeta, mode })
       <article class="alph-infl__step">
         <h4><span class="alph-infl__step-num">2</span>Part of speech</h4>
         <div class="alph-infl__opts">
-          <button v-for="p in browser.posOptions" :key="p"
+          <button v-for="p in browserPosOptions" :key="p"
                   type="button"
                   class="alph-infl__opt"
                   :class="{ 'alph-infl__opt--selected': pos === p }"
@@ -161,14 +249,17 @@ defineExpose({ footerMeta, mode })
       <article class="alph-infl__step">
         <h4><span class="alph-infl__step-num">3</span>Paradigm</h4>
         <div class="alph-infl__opts">
-          <button v-for="p in browser.paradigmOptions" :key="p"
+          <button v-for="p in browserParadigmOptions" :key="p"
                   type="button"
                   class="alph-infl__opt"
                   :class="{ 'alph-infl__opt--selected': paradigm === p }"
                   v-html="p === paradigm ? p : p"
                   @click="paradigm = p" />
         </div>
-        <p class="alph-infl__step-meta" v-html="browser.paradigmMeta" />
+        <p class="alph-infl__step-meta">
+          {{ activeParadigmItem?.viewID || '' }}
+          <span v-if="activeParadigmItem?.form"> · {{ activeParadigmItem.form }}</span>
+        </p>
       </article>
 
       <header class="alph-infl__h-section"><span>Preview</span></header>
@@ -176,10 +267,10 @@ defineExpose({ footerMeta, mode })
       <div class="alph-infl__table-wrap">
         <table class="alph-infl__table">
           <thead>
-            <tr><th v-for="col in browser.preview.columns" :key="col">{{ col }}</th></tr>
+            <tr><th v-for="col in browserPreview.columns" :key="col">{{ col }}</th></tr>
           </thead>
           <tbody>
-            <tr v-for="row in browser.preview.rows" :key="row.head">
+            <tr v-for="row in browserPreview.rows" :key="row.head">
               <th class="alph-infl__row-head">{{ row.head }}</th>
               <td v-for="(cell, i) in row.cells" :key="i"
                   :class="{ 'lang-classical': cell.lang }">{{ cell.value }}</td>

@@ -18,7 +18,7 @@
  * sits above with a 1 px divider, exactly as drawn in drawer-lookup.html.
  */
 
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '../primitives/Button.vue'
 import Icon from '../primitives/Icon.vue'
 import { uiStore } from '../store/ui-store.js'
@@ -44,16 +44,74 @@ const bottomTabs = [
 ]
 
 const currentPage = computed(() => uiStore.state.page)
+const drawerWidth = ref(444)
+const drawerStyle = computed(() => ({ width: `${drawerWidth.value}px` }))
+const panelStyle = computed(() => ({ width: `${Math.max(296, drawerWidth.value - 64)}px` }))
+let resizeStartX = 0
+let resizeStartWidth = 0
+let resizePointerId = null
+
+function clampDrawerWidth (width) {
+  const viewportMax = typeof window !== 'undefined'
+    ? Math.max(360, Math.floor(window.innerWidth * 0.9))
+    : 900
+  return Math.min(Math.max(width, 360), Math.min(viewportMax, 900))
+}
+
+function onResizeMove (event) {
+  if (resizePointerId !== null && event.pointerId !== resizePointerId) return
+  drawerWidth.value = clampDrawerWidth(resizeStartWidth + (resizeStartX - event.clientX))
+}
+
+function stopResize () {
+  resizePointerId = null
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', stopResize)
+  document.body.style.cursor = ''
+  document.documentElement.style.userSelect = ''
+  try { window.localStorage.setItem('alpheios-v3-drawer-width', String(drawerWidth.value)) } catch { /* ignore */ }
+}
+
+function startResize (event) {
+  resizePointerId = event.pointerId
+  resizeStartX = event.clientX
+  resizeStartWidth = drawerWidth.value
+  try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* ignore */ }
+  document.body.style.cursor = 'col-resize'
+  document.documentElement.style.userSelect = 'none'
+  window.addEventListener('pointermove', onResizeMove)
+  window.addEventListener('pointerup', stopResize)
+  event.preventDefault()
+}
 
 function selectTab (id) {
   if (!uiStore.isPageAvailable(id)) return
   uiStore.setPage(id)
 }
 function isDisabled (id) { return !uiStore.isPageAvailable(id) }
+
+onMounted(() => {
+  try {
+    const savedWidth = Number(window.localStorage.getItem('alpheios-v3-drawer-width'))
+    if (savedWidth) drawerWidth.value = clampDrawerWidth(savedWidth)
+  } catch { /* ignore */ }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', stopResize)
+})
 </script>
 
 <template>
-  <aside class="alph-drawer alpheios-v3-scope" aria-label="Alpheios reading panel">
+  <aside class="alph-drawer alpheios-v3-scope" :style="drawerStyle" aria-label="Alpheios reading panel">
+    <div
+      class="alph-drawer__resize"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize Alpheios panel"
+      @pointerdown="startResize"
+    />
 
     <nav class="alph-drawer__sidebar" aria-label="Drawer tabs">
 
@@ -96,7 +154,7 @@ function isDisabled (id) { return !uiStore.isPageAvailable(id) }
       </div>
     </nav>
 
-    <section class="alph-drawer__panel" :aria-label="`Alpheios — ${currentPage}`">
+    <section class="alph-drawer__panel" :style="panelStyle" :aria-label="`Alpheios — ${currentPage}`">
 
       <header class="alph-drawer__topbar">
         <div class="alph-drawer__topbar-title">
@@ -142,13 +200,44 @@ function isDisabled (id) { return !uiStore.isPageAvailable(id) }
    * --drawer-content) might fail to resolve on hosts that strip CSS
    * variables — in that case calc() falls back to the literal 444 px. */
   width: 444px;
-  width: calc(var(--drawer-sidebar) + var(--drawer-content));
   height: 100vh;
   pointer-events: auto;
 }
 
+.alph-drawer__resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+.alph-drawer__resize::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.10);
+  transition: background-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.alph-drawer__resize:hover::before {
+  background: var(--on-surface);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+}
+[data-theme="dark"] .alph-drawer__resize:hover::before {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+[data-theme="dark"] .alph-drawer__resize::before {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 /* ── sidebar ── */
 .alph-drawer__sidebar {
+  order: 2;
   width: 64px;
   width: var(--drawer-sidebar);
   flex-shrink: 0;
@@ -201,7 +290,7 @@ function isDisabled (id) { return !uiStore.isPageAvailable(id) }
   gap: 4px;
   background: transparent;
   border: 0;
-  border-left: 1.5px solid transparent;
+  border-right: 1.5px solid transparent;
   cursor: pointer;
   font-family: inherit;
   color: var(--on-surface-variant);
@@ -216,7 +305,7 @@ function isDisabled (id) { return !uiStore.isPageAvailable(id) }
 }
 .alph-drawer__tab--active {
   background: rgba(0, 0, 0, 0.06);
-  border-left-color: var(--on-surface);
+  border-right-color: var(--on-surface);
   color: var(--on-surface);
 }
 [data-theme="dark"] .alph-drawer__tab--active {
@@ -235,9 +324,9 @@ function isDisabled (id) { return !uiStore.isPageAvailable(id) }
 
 /* ── panel ── */
 .alph-drawer__panel {
-  width: 380px;
-  width: var(--drawer-content);
-  flex-shrink: 0;
+  order: 1;
+  flex: 0 0 auto;
+  min-width: 296px;
   height: 100vh;
   background: var(--glass-surface);
   backdrop-filter: var(--glass-blur);

@@ -11,9 +11,8 @@
  *   2. POS tag row (with optional "recognized" green tag)
  *   3. Morphology h-section + per-lemma elevated cards
  *   4. Short definitions h-section + numbered list
- *   5. Citation card
- *   6. Principal parts data card
- *   7. Providers list
+ *   5. Principal parts data card
+ *   6. Providers list
  *
  * "Visual references" / bento grid is intentionally omitted (DESIGN §10
  * marks bento images as decorative, out of scope for the v3 functional UI).
@@ -25,7 +24,7 @@ import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
 
 const props = defineProps({
-  /** Lookup payload (see fixtures/arma.json). */
+  /** Lookup payload from live data or an explicit empty state. */
   data: { type: Object, required: true }
 })
 
@@ -105,16 +104,6 @@ const recognizedPos = computed(() => props.data.recognized)
         </li>
       </ol>
     </div>
-
-    <!-- ─── Citation ─── -->
-    <article v-if="data.citation" class="alph-lookup__citation">
-      <span class="alph-lookup__citation-label">{{ data.citation.label }}</span>
-      <p class="alph-lookup__citation-text lang-classical" v-html="data.citation.text" />
-      <div class="alph-lookup__citation-foot">
-        <span class="alph-lookup__citation-cite" v-html="data.citation.source" />
-        <a v-if="data.citation.link" :href="data.citation.link" class="alph-lookup__citation-link">View full →</a>
-      </div>
-    </article>
 
     <!-- ─── Principal parts ─── -->
     <header v-if="data.principalParts?.length" class="alph-lookup__h-section">
@@ -241,52 +230,6 @@ const recognizedPos = computed(() => props.data.recognized)
   color: var(--on-surface);
 }
 .alph-lookup__def-text :deep(em) { font-style: italic; color: var(--on-surface-variant); }
-
-/* citation */
-.alph-lookup__citation {
-  margin: 12px;
-  background: var(--surface-container-lowest);
-  border: 1px solid var(--outline-variant);
-  border-radius: var(--radius-xl);
-  padding: 14px;
-}
-.alph-lookup__citation-label {
-  display: block;
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--on-surface-variant);
-  margin-bottom: 8px;
-}
-.alph-lookup__citation-text {
-  font-style: italic;
-  font-size: 13px; line-height: 20px;
-  margin: 0 0 8px;
-  color: var(--on-surface);
-}
-.alph-lookup__citation-text :deep(mark) {
-  background: rgba(0, 0, 0, 0.04);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.18);
-  padding: 0 1px;
-  color: inherit;
-}
-[data-theme="dark"] .alph-lookup__citation-text :deep(mark) {
-  background: rgba(255, 255, 255, 0.06);
-  border-bottom-color: rgba(255, 255, 255, 0.18);
-}
-.alph-lookup__citation-foot {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 10px;
-}
-.alph-lookup__citation-cite {
-  color: var(--on-surface-variant);
-  font-family: 'Lato', serif; font-size: 11px;
-}
-.alph-lookup__citation-link {
-  font-size: 10px; font-weight: 500;
-  color: var(--on-surface);
-  text-decoration: none;
-  border-bottom: 1px solid currentColor;
-}
 
 /* data-card */
 .alph-lookup__data-card {

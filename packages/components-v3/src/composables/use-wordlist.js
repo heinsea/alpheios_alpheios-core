@@ -1,6 +1,6 @@
 /**
  * useWordList — bridges alpheios-core's WordlistController into a Vue 3-reactive
- * shape matching `fixtures/wordlist.json`.
+ * shape consumed by WordListPage.
  *
  * Returns `{ groups, contextData, loading, hasData, selectWord }`:
  *   groups      — array of { id, name, count, expanded, words: [{ form, pos, ctx }] }
@@ -9,7 +9,7 @@
  *   hasData     — true when at least one wordlist has items
  *   selectWord  — function(langCode, targetWord) to view a word's contexts
  *
- * Sandbox returns empty refs so WordListPage falls back to fixture.
+ * Sandbox returns empty refs so WordListPage shows an explicit empty state.
  */
 
 import { ref, onScopeDispose } from 'vue'
@@ -76,6 +76,13 @@ export function useWordList () {
 
   function selectWord (langCode, targetWord) {
     if (!langCode || !targetWord) return
+    contextData.value = {
+      word: targetWord,
+      lang: langNameFor(langCode),
+      count: 0,
+      items: [],
+      footerMeta: `${targetWord} · loading contexts`
+    }
     try {
       api.selectWordItem(langCode, targetWord)
     } catch { /* swallow */ }

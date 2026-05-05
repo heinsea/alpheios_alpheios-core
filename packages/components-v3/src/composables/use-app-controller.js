@@ -7,8 +7,8 @@
  * `app.provide(APP_CONTROLLER_KEY, appController)`. Pages and surfaces inside
  * the v3 tree can then call `useAppController()` to read it. The Sandbox
  * preview environment never provides one, so this composable returns
- * `null` there — pages must fall back to fixture data when the controller
- * is missing.
+ * `null` there — pages must render explicit empty/unavailable states when
+ * the controller is missing.
  *
  * We deliberately use a Symbol key so an outsider can't accidentally
  * overwrite the binding via string-keyed provide().

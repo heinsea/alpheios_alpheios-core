@@ -26,14 +26,15 @@ const props = defineProps({
 const controller = useAppController()
 
 const state = ref('loggedOut') // 'loggedOut' | 'loggedIn'
-const liveProfile = ref(null)
+const authState = ref(null)
+const liveUserData = ref(null)
 const authLoading = ref(false)
 
 async function loginIn () {
   if (controller) {
     authLoading.value = true
     try {
-      await controller.api.auth.authenticate()
+      controller.api.auth.authenticate()
     } catch { /* swallow */ }
     authLoading.value = false
   } else {
@@ -55,19 +56,21 @@ function flip () { state.value = state.value === 'loggedOut' ? 'loggedIn' : 'log
 
 const out = computed(() => props.data.loggedOut)
 const inn = computed(() => {
-  if (liveProfile.value) {
+  if (authState.value && authState.value.isAuthenticated) {
+    const displayName = authState.value.userNickName || authState.value.userId || props.data.loggedIn.name
+    const userMeta = authState.value.userId || props.data.loggedIn.email
     return {
       ...props.data.loggedIn,
-      avatarInitials: (liveProfile.value.name || '?').charAt(0).toUpperCase(),
-      name: liveProfile.value.name || props.data.loggedIn.name,
-      email: liveProfile.value.email || props.data.loggedIn.email,
+      avatarInitials: (displayName || '?').charAt(0).toUpperCase(),
+      name: displayName,
+      email: userMeta,
       plan: 'Alpheios user',
       stats: [
-        { value: liveProfile.value.wordCount || 0, label: 'Words saved' },
-        { value: liveProfile.value.sessionCount || 0, label: 'Sessions' },
-        { value: liveProfile.value.lastActive || '—', label: 'Last active' }
+        { value: liveUserData.value && liveUserData.value.endpoints ? Object.keys(liveUserData.value.endpoints).length : 0, label: 'Endpoints' },
+        { value: authState.value.expirationDateTime ? 'Active' : '—', label: 'Session' },
+        { value: authState.value.isSessionExpired ? 'Expired' : 'Current', label: 'Status' }
       ],
-      activity: liveProfile.value.activity || []
+      activity: props.data.loggedIn.activity
     }
   }
   return props.data.loggedIn
@@ -81,20 +84,28 @@ const footerMeta = computed(() =>
 let unwatchAuth = null
 onMounted(() => {
   if (controller) {
+    try { controller.api.auth.session() } catch { /* swallow */ }
     unwatchAuth = controller._store.watch(
-      (st) => st.auth && st.auth.isAuthenticated,
-      (isAuth) => {
-        if (isAuth) {
+      (st) => st.auth && {
+        isAuthenticated: st.auth.isAuthenticated,
+        isSessionExpired: st.auth.isSessionExpired,
+        userId: st.auth.userId,
+        userNickName: st.auth.userNickName,
+        expirationDateTime: st.auth.expirationDateTime,
+        notification: st.auth.notification
+      },
+      (nextAuthState) => {
+        authState.value = nextAuthState
+        if (nextAuthState && nextAuthState.isAuthenticated) {
           state.value = 'loggedIn'
-          // Attempt to read profile
           try {
-            controller.api.auth.getProfile().then(p => {
-              if (p) liveProfile.value = p
+            controller.api.auth.getUserData().then(d => {
+              liveUserData.value = d || null
             }).catch(() => {})
           } catch { /* swallow */ }
         } else {
           state.value = 'loggedOut'
-          liveProfile.value = null
+          liveUserData.value = null
         }
       },
       { immediate: true }

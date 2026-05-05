@@ -1,13 +1,13 @@
 /**
  * useLookup — bridges alpheios-core's Vuex `app` namespace + `api.app.homonym`
- * into a Vue 3-reactive ref shaped like `fixtures/arma.json`.
+ * into a Vue 3-reactive ref consumed by LookupPage and MorphPage.
  *
  * Returns `{ state, data, targetWord, loading, error, rebuild }`:
  *   state       — 'idle' | 'loading' | 'success' | 'no-result'
  *                 (idle: nothing has been looked up yet; success: homonym
  *                 with at least one lexeme; no-result: a lexical request
  *                 has finished without a homonym).
- *   data        — fixture-shaped object when state === 'success', else null.
+ *   data        — live lookup object when state === 'success', else null.
  *   targetWord  — the most recent target word string, even when no homonym
  *                 came back (lets the page show "couldn't find <word>").
  *   loading     — true while `lexicalRequest.startTime > endTime`.
@@ -94,10 +94,20 @@ export function useLookup () {
   function projectHomonym (homonym, lexemes, s) {
     const langInfo = langInfoFor(homonym.languageID)
 
-    /* ── Short definitions ── */
+    /* ── Definitions ──
+     * Some valid Latin entries, especially indeclinables/conjunctions such as
+     * `quamquam`, are most useful only after full lexicon data arrives. v2
+     * renders those from `meaning.fullDefs`; v3 must not treat them as empty.
+     */
     let definitions = []
-    if (s.shortDefUpdateTime > 0 && lexemes[0] && lexemes[0].meaning && Array.isArray(lexemes[0].meaning.shortDefs)) {
-      definitions = lexemes[0].meaning.shortDefs.map(d => d && d.text ? d.text : '').filter(Boolean)
+    if (s.shortDefUpdateTime > 0 || s.fullDefUpdateTime > 0) {
+      definitions = lexemes.flatMap(lex => {
+        const meaning = lex && lex.meaning
+        if (!meaning) return []
+        const shortDefs = Array.isArray(meaning.shortDefs) ? meaning.shortDefs : []
+        const fullDefs = Array.isArray(meaning.fullDefs) ? meaning.fullDefs : []
+        return [...shortDefs, ...fullDefs].map(d => d && d.text ? d.text : '').filter(Boolean)
+      })
     }
 
     /* ── POS features ── */
@@ -168,24 +178,6 @@ export function useLookup () {
       }
     })
 
-    /* ── Citation (from selection context) ── */
-    let citation = null
-    const selText = s.selectedText || homonym.targetWord
-    if (selText) {
-      let pageUrl = ''
-      try { pageUrl = window.location.href } catch { /* not in browser */ }
-      let sourceLabel = ''
-      if (pageUrl) {
-        try { sourceLabel = `— ${new URL(pageUrl).hostname}` } catch { sourceLabel = pageUrl }
-      }
-      citation = {
-        label: 'In context',
-        text: `<mark>${selText}</mark>`,
-        source: sourceLabel,
-        link: pageUrl || '#'
-      }
-    }
-
     /* ── Principal parts (from first lexeme's lemma) ── */
     const principalParts = []
     if (lexemes[0] && lexemes[0].lemma && Array.isArray(lexemes[0].lemma.principalParts)) {
@@ -211,7 +203,7 @@ export function useLookup () {
       pos: posList,
       morph,
       definitions,
-      citation,
+      citation: null,
       principalParts,
       providers
     }
@@ -221,6 +213,7 @@ export function useLookup () {
   const unwatchers = []
   unwatchers.push(store.watch((st) => st.app.homonymDataReady, rebuild, { immediate: true }))
   unwatchers.push(store.watch((st) => st.app.shortDefUpdateTime, rebuild))
+  unwatchers.push(store.watch((st) => st.app.fullDefUpdateTime, rebuild))
   unwatchers.push(store.watch((st) => st.app.morphDataReady, rebuild))
   unwatchers.push(store.watch((st) => st.app.targetWord, rebuild))
   unwatchers.push(store.watch(

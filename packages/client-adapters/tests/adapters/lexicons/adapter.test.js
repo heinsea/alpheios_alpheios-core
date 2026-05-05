@@ -634,6 +634,34 @@ describe('lexicons/adapter.test.js', () => {
     expect(adapter.lookupInDataIndex(data,mockLemma,model)[0].field1).toEqual('Caesar')
   })
 
+  it('26a AlpheiosLexiconsAdapter - lookupInDataIndex returns no result for empty data', async () => {
+
+    let adapter = new AlpheiosLexiconsAdapter({
+      category: 'lexicon',
+      adapterName: 'alpheios',
+      method: 'fetchShortDefs',
+      callBackEvtSuccess: { pub: () => jest.fn() }
+    })
+    const model = LMF.getLanguageModel(Constants.LANG_GREEK)
+    const mockLemma = { word: 'Καῑσαρ', principalParts: [] }
+
+    expect(adapter.lookupInDataIndex(null, mockLemma, model)).toBeFalsy()
+  })
+
+  it('26b AlpheiosLexiconsAdapter - default config includes the Paideia Latin glossary', async () => {
+
+    let adapter = new AlpheiosLexiconsAdapter({
+      category: 'lexicon',
+      adapterName: 'alpheios',
+      method: 'fetchShortDefs',
+      callBackEvtSuccess: { pub: () => jest.fn() }
+    })
+    const glossary = adapter.config.lexicons['https://github.com/alpheios-project/paidea-glossary']
+
+    expect(glossary.urls.short).toEqual('https://repos1.alpheios.net/lexdata/paideia/dat/lat-1a-reader.dat')
+    expect(glossary.langs.source).toEqual('lat')
+  })
+
   it('27 AlpheiosLexiconsAdapter - async fetchShortDefs', async () => {
     let adapter = new AlpheiosLexiconsAdapter({
       category: 'lexicon',

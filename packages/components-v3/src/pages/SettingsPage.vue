@@ -13,7 +13,7 @@
  * `dirty` is true.
  */
 
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onScopeDispose } from 'vue'
 import Button from '../primitives/Button.vue'
 import Icon from '../primitives/Icon.vue'
 import Toggle from '../primitives/Toggle.vue'
@@ -34,19 +34,15 @@ const OPTION_MAP = {
   'panelPosition':   { group: 'ui', key: 'panelPosition' },
   'popupMaxWidth':   { group: 'ui', key: 'maxPopupWidth' },
   'hideLogin':       { group: 'ui', key: 'hideLoginPrompt' },
-  'logLevel':        { group: 'ui', key: 'verboseMode' },
   // Feature options
   'enableLemmaTranslations': { group: 'feature', key: 'enableLemmaTranslations' },
   'locale':           { group: 'feature', key: 'locale' },
-  'modUsage':         { group: 'feature', key: 'enableWordUsageExamples' },
-  'preferredLanguage': { group: 'feature', key: 'preferredLanguage' },
-  // Resource options (no direct fixture mapping; handled by items section)
+  'modUsage':         { group: 'feature', key: 'enableWordUsageExamples' }
 }
 
-function optionGroup (rowId) { return OPTION_MAP[rowId] }
-function optionKey (rowId) { return OPTION_MAP[rowId] ? OPTION_MAP[rowId].key : rowId }
-
 const tab = ref(props.data.tabs[0].value)
+const liveResources = ref(null)
+const resourceMeta = reactive({})
 
 /* ─── Mutable copy of fixture rows so v-model just works ─── */
 function freshValues () {
@@ -66,11 +62,14 @@ const values = reactive(freshValues())
 let initialSnapshot = JSON.stringify(values)
 function snapshotInitial () { initialSnapshot = JSON.stringify(values) }
 const dirty = computed(() => JSON.stringify(values) !== initialSnapshot)
-function reset () {
-  Object.assign(values, JSON.parse(initialSnapshot))
+async function reset () {
   if (controller) {
-    try { controller.api.settings.resetAllOptions() } catch { /* swallow */ }
-    setTimeout(() => populateFromApi(), 200)
+    try { await controller.api.settings.resetAllOptions() } catch { /* swallow */ }
+    populateFromApi()
+    saveState.value = 'saved'
+    setTimeout(() => { saveState.value = 'idle' }, 2000)
+  } else {
+    Object.assign(values, JSON.parse(initialSnapshot))
   }
 }
 
@@ -82,6 +81,90 @@ const dirtyCount = computed(() => {
 
 /* ── Live settings wiring ── */
 const saveState = ref('idle') // 'idle' | 'saved'
+const lastSavedKey = ref(null)
+
+const settingsData = computed(() => ({
+  ...props.data,
+  resources: liveResources.value || props.data.resources
+}))
+
+function normalizeValueForLocal (fixtureId, value) {
+  const existing = values[fixtureId]
+  if (typeof existing === 'boolean') {
+    return value === true || value === 'true' || value === 'Yes'
+  }
+  if (typeof existing === 'number') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : existing
+  }
+  return value !== undefined ? value : existing
+}
+
+function markSaved (key) {
+  lastSavedKey.value = key
+  saveState.value = 'saved'
+  setTimeout(() => { saveState.value = 'idle' }, 2000)
+}
+
+function currentAsArray (value) {
+  if (Array.isArray(value)) return value
+  if (value === undefined || value === null || value === false) return []
+  return [value]
+}
+
+function resourceId (fullName, value) {
+  return `${fullName}::${value}`
+}
+
+function buildLiveResources (resOpts) {
+  if (!resOpts || !resOpts.items) {
+    liveResources.value = null
+    return
+  }
+  const types = ['lexicons', 'lexiconsShort', 'grammars']
+  const groups = []
+  Object.keys(resourceMeta).forEach(k => { delete resourceMeta[k] })
+
+  for (const type of types) {
+    const optionItems = Array.isArray(resOpts.items[type]) ? resOpts.items[type] : []
+    const typeDefaults = resOpts.defaults && resOpts.defaults.items && resOpts.defaults.items[type]
+    const typeTitle = (typeDefaults && (typeDefaults.labelText || typeDefaults.labelL10n)) || type
+    for (const opt of optionItems) {
+      if (!opt || !Array.isArray(opt.values) || opt.values.length === 0) continue
+      const current = currentAsArray(opt.currentValue)
+      const title = [typeTitle, opt.labelText || opt.label || opt.name].filter(Boolean).join(' · ')
+      groups.push({
+        title,
+        desc: opt.multiValue === false ? 'Choose one provider.' : 'Enabled providers are tried in order.',
+        draggable: false,
+        items: opt.values.map(choice => {
+          const id = resourceId(opt.name, choice.value)
+          const checked = current.includes(choice.value)
+          values[`res.${id}`] = checked
+          resourceMeta[id] = {
+            fullName: opt.name,
+            value: choice.value,
+            multiValue: opt.multiValue !== false,
+            current
+          }
+          return {
+            id,
+            name: choice.text || choice.value,
+            meta: opt.name,
+            checked
+          }
+        })
+      })
+    }
+  }
+
+  const enabled = Object.keys(resourceMeta).filter(id => values[`res.${id}`]).length
+  liveResources.value = {
+    ...props.data.resources,
+    groups,
+    footerMeta: `${enabled} resources enabled`
+  }
+}
 
 function populateFromApi () {
   if (!controller) return
@@ -96,59 +179,78 @@ function populateFromApi () {
     for (const [fixtureId, mapping] of Object.entries(OPTION_MAP)) {
       const found = allOpts.find(o => o.key === mapping.key && o.group === mapping.group)
       if (found !== undefined) {
-        // Normalize value — some options are strings, some booleans
-        const val = found.value
-        const existing = values[fixtureId]
-        if (typeof existing === 'boolean') {
-          values[fixtureId] = val === true || val === 'true' || val === 'Yes'
-        } else if (typeof existing === 'number') {
-          values[fixtureId] = Number(val) || existing
-        } else {
-          values[fixtureId] = val !== undefined ? val : existing
-        }
+        values[fixtureId] = normalizeValueForLocal(fixtureId, found.value)
       }
     }
-    // Resource options: checkbox items
     const resOpts = controller.api.settings.getResourceOptions && controller.api.settings.getResourceOptions()
-    if (resOpts && resOpts.items) {
-      for (const [key, opt] of Object.entries(resOpts.items)) {
-        const fk = `res.${key}`
-        if (fk in values) values[fk] = !!opt.currentValue
-      }
-    }
-    // Update initial snapshot after populating from API
+    buildLiveResources(resOpts)
     snapshotInitial()
   } catch { /* silent fallback to fixture */ }
 }
 
-// Save individual changes to API immediately (instant persistence)
-const lastSavedKey = ref(null)
-watch(values, (newVals, oldVals) => {
+function updateSetting (key, value) {
+  values[key] = value
   if (!controller) return
-  for (const key of Object.keys(newVals)) {
-    if (newVals[key] === oldVals[key]) continue
-    const mapping = OPTION_MAP[key]
-    if (!mapping) continue
-    try {
-      if (mapping.group === 'ui') {
-        controller.api.settings.uiOptionChange(mapping.key, newVals[key])
-      } else if (mapping.group === 'feature') {
-        controller.api.settings.featureOptionChange(mapping.key, newVals[key])
-      }
-      lastSavedKey.value = key
-      saveState.value = 'saved'
-      setTimeout(() => { saveState.value = 'idle' }, 2000)
-    } catch { /* swallow */ }
+  const mapping = OPTION_MAP[key]
+  if (!mapping) return
+  try {
+    if (mapping.group === 'ui') {
+      controller.api.settings.uiOptionChange(mapping.key, value)
+    } else if (mapping.group === 'feature') {
+      controller.api.settings.featureOptionChange(mapping.key, value)
+    }
+    markSaved(key)
+  } catch { /* swallow */ }
+}
+
+function toggleResource (item) {
+  const meta = resourceMeta[item.id]
+  const key = `res.${item.id}`
+  const nextChecked = !values[key]
+  values[key] = nextChecked
+  if (!controller || !meta) return
+
+  const current = currentAsArray(meta.current)
+  let nextValue
+  if (meta.multiValue) {
+    nextValue = nextChecked
+      ? Array.from(new Set([...current, meta.value]))
+      : current.filter(v => v !== meta.value)
+  } else {
+    nextValue = meta.value
+    values[key] = true
   }
-}, { deep: true })
+
+  try {
+    controller.api.settings.resourceOptionChange(meta.fullName, nextValue)
+    if (controller.api.app && controller.api.app.applyResourceOption) {
+      controller.api.app.applyResourceOption(meta.fullName, nextValue)
+    }
+    markSaved(key)
+    populateFromApi()
+  } catch { /* swallow */ }
+}
+
+let unwatchSettings = []
 
 onMounted(() => {
-  if (controller) populateFromApi()
+  if (controller) {
+    populateFromApi()
+    unwatchSettings = [
+      controller._store.watch((st) => st.settings && st.settings.uiResetCounter, populateFromApi),
+      controller._store.watch((st) => st.settings && st.settings.featureResetCounter, populateFromApi),
+      controller._store.watch((st) => st.settings && st.settings.resourceResetCounter, populateFromApi)
+    ]
+  }
+})
+
+onScopeDispose(() => {
+  unwatchSettings.forEach(u => { try { u() } catch { /* swallow */ } })
 })
 
 const footerMeta = computed(() => {
-  if (tab.value === 'resources') return props.data.resources.footerMeta
-  if (tab.value === 'advanced')  return props.data.advanced.footerMeta
+  if (tab.value === 'resources') return settingsData.value.resources.footerMeta
+  if (tab.value === 'advanced')  return settingsData.value.advanced.footerMeta
   if (controller) {
     return saveState.value === 'saved' ? 'Saved · just now' : 'No changes'
   }
@@ -161,12 +263,12 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
   <div class="alph-settings">
 
     <div class="alph-settings__seg-row">
-      <Segmented v-model="tab" :options="data.tabs" aria-label="Settings tabs" />
+      <Segmented v-model="tab" :options="settingsData.tabs" aria-label="Settings tabs" />
     </div>
 
     <!-- ============ UI ============ -->
     <template v-if="tab === 'ui'">
-      <section v-for="g in data.ui.groups" :key="g.title" class="alph-settings__group">
+      <section v-for="g in settingsData.ui.groups" :key="g.title" class="alph-settings__group">
         <h4>{{ g.title }}</h4>
         <p v-if="g.desc" class="alph-settings__desc">{{ g.desc }}</p>
         <div v-for="r in g.rows" :key="r.id" class="alph-settings__row">
@@ -175,11 +277,18 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
             <span v-if="r.help" class="alph-settings__help" v-html="r.help" />
           </div>
           <div class="alph-settings__row-ctl">
-            <Toggle v-if="r.kind === 'toggle'" v-model="values[r.id]" :aria-label="r.label" />
-            <Slider v-else-if="r.kind === 'slider'" v-model="values[r.id]"
-                    :min="r.min" :max="r.max" :unit="r.unit" :aria-label="r.label" />
+            <Toggle v-if="r.kind === 'toggle'"
+                    :model-value="values[r.id]"
+                    :aria-label="r.label"
+                    @update:model-value="v => updateSetting(r.id, v)" />
+            <Slider v-else-if="r.kind === 'slider'"
+                    :model-value="values[r.id]"
+                    :min="r.min" :max="r.max" :unit="r.unit" :aria-label="r.label"
+                    @update:model-value="v => updateSetting(r.id, v)" />
             <Segmented v-else-if="r.kind === 'segInline'"
-                       v-model="values[r.id]" :options="r.options" size="inline" :aria-label="r.label" />
+                       :model-value="values[r.id]"
+                       :options="r.options" size="inline" :aria-label="r.label"
+                       @update:model-value="v => updateSetting(r.id, v)" />
             <button v-else-if="r.kind === 'select'" type="button" class="alph-settings__select">
               <span>{{ values[r.id] ?? r.value }}</span>
               <Icon name="expand_more" :size="14" />
@@ -191,7 +300,7 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
 
     <!-- ============ FEATURES ============ -->
     <template v-else-if="tab === 'features'">
-      <section v-for="g in data.features.groups" :key="g.title" class="alph-settings__group">
+      <section v-for="g in settingsData.features.groups" :key="g.title" class="alph-settings__group">
         <h4>{{ g.title }}</h4>
         <p v-if="g.desc" class="alph-settings__desc">{{ g.desc }}</p>
         <div v-for="r in g.rows" :key="r.id" class="alph-settings__row">
@@ -200,7 +309,11 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
             <span v-if="r.help" class="alph-settings__help" v-html="r.help" />
           </div>
           <div class="alph-settings__row-ctl">
-            <Toggle v-model="values[r.id]" :aria-label="r.label" />
+            <Toggle
+              :model-value="values[r.id]"
+              :aria-label="r.label"
+              @update:model-value="v => updateSetting(r.id, v)"
+            />
           </div>
         </div>
       </section>
@@ -208,13 +321,13 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
 
     <!-- ============ RESOURCES ============ -->
     <template v-else-if="tab === 'resources'">
-      <section v-for="g in data.resources.groups" :key="g.title" class="alph-settings__group">
+      <section v-for="g in settingsData.resources.groups" :key="g.title" class="alph-settings__group">
         <h4>{{ g.title }}</h4>
         <p v-if="g.desc" class="alph-settings__desc">{{ g.desc }}</p>
         <div v-for="it in g.items" :key="it.id" class="alph-settings__pick">
           <span class="alph-settings__check"
                 :class="{ 'alph-settings__check--on': values[`res.${it.id}`] }"
-                @click="values[`res.${it.id}`] = !values[`res.${it.id}`]">
+                @click="toggleResource(it)">
             <Icon v-if="values[`res.${it.id}`]" name="check" :size="10" />
           </span>
           <div class="alph-settings__pick-body">
@@ -228,7 +341,7 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
 
     <!-- ============ ADVANCED ============ -->
     <template v-else-if="tab === 'advanced'">
-      <section v-for="g in data.advanced.groups" :key="g.title" class="alph-settings__group">
+      <section v-for="g in settingsData.advanced.groups" :key="g.title" class="alph-settings__group">
         <h4>{{ g.title }}</h4>
         <p v-if="g.desc" class="alph-settings__desc">{{ g.desc }}</p>
         <div v-for="r in g.rows" :key="r.id" class="alph-settings__row">
@@ -237,9 +350,14 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
             <span v-if="r.help" class="alph-settings__help" v-html="r.help" />
           </div>
           <div class="alph-settings__row-ctl">
-            <Toggle v-if="r.kind === 'toggle'" v-model="values[r.id]" :aria-label="r.label" />
+            <Toggle v-if="r.kind === 'toggle'"
+                    :model-value="values[r.id]"
+                    :aria-label="r.label"
+                    @update:model-value="v => updateSetting(r.id, v)" />
             <Segmented v-else-if="r.kind === 'segInline'"
-                       v-model="values[r.id]" :options="r.options" size="inline" :aria-label="r.label" />
+                       :model-value="values[r.id]"
+                       :options="r.options" size="inline" :aria-label="r.label"
+                       @update:model-value="v => updateSetting(r.id, v)" />
             <span v-else-if="r.kind === 'select'" class="alph-settings__select alph-settings__select--ro">
               {{ r.value }}
             </span>
@@ -249,17 +367,17 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
 
       <div class="alph-settings__danger">
         <div>
-          <div class="alph-settings__danger-name">{{ data.advanced.danger.name }}</div>
-          <div class="alph-settings__danger-help">{{ data.advanced.danger.help }}</div>
+          <div class="alph-settings__danger-name">{{ settingsData.advanced.danger.name }}</div>
+          <div class="alph-settings__danger-help">{{ settingsData.advanced.danger.help }}</div>
         </div>
-        <button class="alph-settings__danger-btn">{{ data.advanced.danger.label }}</button>
+        <button class="alph-settings__danger-btn">{{ settingsData.advanced.danger.label }}</button>
       </div>
 
       <section class="alph-settings__group">
         <h4>About</h4>
       </section>
       <div class="alph-settings__about">
-        <div v-for="row in data.advanced.about" :key="row.name" class="alph-settings__about-row">
+        <div v-for="row in settingsData.advanced.about" :key="row.name" class="alph-settings__about-row">
           <span>{{ row.name }}</span>
           <span class="alph-settings__about-v">{{ row.value }}</span>
         </div>

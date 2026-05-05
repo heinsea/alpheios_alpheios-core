@@ -11,8 +11,9 @@
  * Stage 3:    + Morph / Inflections / Usage / Tree / Grammar / WordList /
  *             User (Auth) / Opts (Settings) — every sidebar tab routable.
  *             Each page lives in `pages/`, owns its sub-state, and is fed
- *             a fixture for now. Footer slot content varies per page.
- * Stage 4:    swaps fixtures for real `useLookup()` etc. composables and
+ *             live data or explicit empty state objects. Footer slot content
+ *             varies per page.
+ * Stage 4:    wires real `useLookup()` etc. composables and
  *             toggles surface based on selection / FAB clicks.
  */
 
@@ -43,34 +44,136 @@ import { useWordList } from './composables/use-wordlist.js'
 import { useInflections } from './composables/use-inflections.js'
 import { useResources } from './composables/use-resources.js'
 
-import armaFixture        from './fixtures/arma.json'
-import emptyStatesFixture from './fixtures/empty-states.json'
-import inflectionsFixture from './fixtures/inflections.json'
-import wordListFixture    from './fixtures/wordlist.json'
-import resourcesFixture   from './fixtures/resources.json'
-import settingsFixture    from './fixtures/settings.json'
-import authFixture        from './fixtures/auth.json'
+const EMPTY_POPUP_STATES = {
+  loading: { lemma: '', lang: '', title: 'Looking up', desc: 'Alpheios is querying lexical data.' },
+  noResult: {
+    lemma: '',
+    lang: '',
+    title: 'No result',
+    desc: 'No lexical entry was returned for this lookup.',
+    links: []
+  },
+  error: {
+    lemma: '',
+    lang: '',
+    banner: { title: 'Lookup failed', desc: 'The data layer reported an error.' },
+    cachedPos: [],
+    cachedDefs: []
+  }
+}
+
+const EMPTY_INFLECTIONS = {
+  matched: {
+    lemma: '',
+    pos: '',
+    subhead: 'Run a lookup to load inflection data.',
+    wordClass: 'noun',
+    density: 'wide',
+    filterChips: [{ id: 'all', label: 'All', active: true }],
+    highlightMatches: true,
+    table: { columns: [], rows: [], tfoot: '' },
+    footnotes: [],
+    credits: '',
+    footerMeta: 'No inflection data'
+  },
+  browser: {
+    language: '',
+    languages: [],
+    pos: '',
+    posOptions: [],
+    paradigm: '',
+    paradigmOptions: [],
+    paradigmMeta: '',
+    voice: '',
+    mood: '',
+    preview: { columns: [], rows: [] },
+    footerMeta: 'No browser data'
+  }
+}
+
+const EMPTY_WORDLIST = {
+  list: { groups: [], footerMeta: 'No saved words' },
+  context: { word: '', lang: '', count: 0, items: [], footerMeta: 'No context selected' }
+}
+
+const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
+const OFFICIAL_GRAMMAR_URL = 'https://grammars.alpheios.net/allen-greenough/index.htm?ts=1777980366365#table-of-contents'
+
+const SETTINGS_SHELL = {
+  tabs: [
+    { value: 'ui', label: 'UI' },
+    { value: 'features', label: 'Features' },
+    { value: 'resources', label: 'Resources' },
+    { value: 'advanced', label: 'Advanced' }
+  ],
+  ui: {
+    groups: [
+      { title: 'Typography', rows: [{ id: 'fontSize', kind: 'slider', label: 'Font size', min: 12, max: 20, value: 16, unit: '' }] },
+      {
+        title: 'Layout',
+        rows: [
+          { id: 'panelPosition', kind: 'segInline', label: 'Panel position', value: 'left', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
+          { id: 'popupMaxWidth', kind: 'slider', label: 'Popup max width', min: 400, max: 1200, value: 800, unit: '' },
+          { id: 'hideLogin', kind: 'toggle', label: 'Hide login prompt', value: false }
+        ]
+      }
+    ]
+  },
+  features: {
+    groups: [
+      { title: 'Lookup modules', rows: [
+        { id: 'enableLemmaTranslations', kind: 'toggle', label: 'Latin lemma translations', value: false },
+        { id: 'modUsage', kind: 'toggle', label: 'Word usage examples', value: true }
+      ] }
+    ]
+  },
+  resources: { groups: [], footerMeta: 'No resource options loaded' },
+  advanced: {
+    groups: [],
+    danger: { name: 'Reset options', help: 'Restore configurable options to defaults.', label: 'Reset' },
+    about: [],
+    footerMeta: 'Data layer status'
+  }
+}
+
+const AUTH_SHELL = {
+  loggedOut: {
+    title: 'Sign in to sync',
+    sub: 'Authentication is connected to the extension background service.',
+    ctaLabel: 'Continue',
+    features: [],
+    footnote: ''
+  },
+  loggedIn: {
+    avatarInitials: '?',
+    name: '',
+    email: '',
+    plan: 'Alpheios user',
+    stats: [],
+    activity: [],
+    sessions: [],
+    lastSync: 'Auth state loaded'
+  }
+}
 
 /* ── Stage 4b live data wiring ──
  * `useLookup()` exposes a state machine: idle / loading / success /
  * no-result. lookupData branches on it so users can clearly tell whether
  * a query landed:
- *   idle      → arma fixture (acts as a demo so the page never looks empty
- *               in Sandbox / before any lookup happens).
+ *   idle      → explicit no-lookup state.
  *   loading   → echo the targetWord with a placeholder definition while
  *               the lexical request is in flight.
- *   success   → live homonym data (citation / principal parts still come
- *               from the fixture until Stage 4c populates them).
+ *   success   → live homonym data only.
  *   no-result → echo the targetWord with an explicit "No entry found" line
- *               and recognized=false; the fixture is NOT shown so the
- *               state is unambiguous (user feedback, 2026-05-05).
+ *               and recognized=false.
  */
+const controller = useAppController()
 const live = useLookup()
 
 function emptyShape (lemma, lang, definitionLine) {
   return {
     lemma: lemma || '',
-    lang: lang || armaFixture.lang,
+    lang: lang || '',
     langCode: '',
     selectedText: '',
     recognized: false,
@@ -85,17 +188,7 @@ function emptyShape (lemma, lang, definitionLine) {
 
 const lookupData = computed(() => {
   if (live.state.value === 'success' && live.data.value) {
-    // Merge live over fixture so demo citation / principal parts persist
-    // until Stage 4c. Empty arrays fall through to fixture so the section
-    // stays visually filled.
-    return {
-      ...armaFixture,
-      ...Object.fromEntries(
-        Object.entries(live.data.value).filter(([, v]) =>
-          v !== null && !(Array.isArray(v) && v.length === 0)
-        )
-      )
-    }
+    return live.data.value
   }
   if (live.state.value === 'loading') {
     return emptyShape(live.targetWord.value, live.lang.value, 'Looking up…')
@@ -104,75 +197,165 @@ const lookupData = computed(() => {
     return emptyShape(live.targetWord.value, live.lang.value,
       `No entry found for ${live.targetWord.value || 'this word'} in any lexicon.`)
   }
-  // idle — show fixture as demo
-  return armaFixture
+  if (!controller) {
+    return emptyShape('', '', 'The Alpheios data controller is unavailable on this page.')
+  }
+  return emptyShape('', '', 'Run a lookup or select a word to load lexical data.')
 })
 
-/* Search input ref — starts at arma demo, then auto-syncs to whatever
- * target word a real lookup produced. The user can still freely type and
- * their typed value persists until the next lookup overwrites it. */
-const search = ref(armaFixture.lemma)
+/* Search input ref — auto-syncs to whatever target word a real lookup
+ * produced. The user can still freely type and their typed value persists
+ * until the next lookup overwrites it. */
+const search = ref('')
 watch(() => live.targetWord.value, (w) => { if (w) search.value = w })
 
-const controller = useAppController()
 function onSearchEnter (value) {
   if (!controller || !value || !value.trim()) return
-  const languageID = controller._store.state.app.currentLanguageID
-  if (languageID) {
-    controller.api.app.newLexicalRequest(value.trim(), languageID, null, 'lookup')
+  // Match v2 lookup.vue: typed lookups are driven by the lookup-language
+  // option, not by the language of whatever homonym happened to be current.
+  // Reusing currentLanguageCode first can send a Latin search like `quamquam`
+  // to the wrong analyzer after a previous non-Latin lookup.
+  const s = controller._store.state.app
+  const lookupLanguage = controller.api.settings &&
+    controller.api.settings.getFeatureOptions().items.lookupLanguage
+  const code =
+    s.selectedLookupLangCode ||
+    (lookupLanguage && lookupLanguage.currentValue) ||
+    s.currentLanguageCode ||
+    'lat'
+  if (typeof controller.runLookup === 'function') {
+    controller.runLookup(value, code)
   }
 }
 
 const wl = useWordList()
 const infl = useInflections()
 const resources = useResources()
+const settingsPageRef = ref(null)
+const authPageRef = ref(null)
 
-/* ── Inflections data: merge live matched with fixture fallback ── */
+/* ── Inflections data: live matched data or explicit empty state ── */
 const inflectionsData = computed(() => {
   if (infl.hasData.value && infl.matchedData.value) {
     return {
-      matched: { ...inflectionsFixture.matched, ...infl.matchedData.value },
-      browser: inflectionsFixture.browser
+      matched: { ...EMPTY_INFLECTIONS.matched, ...infl.matchedData.value },
+      browser: EMPTY_INFLECTIONS.browser
     }
   }
-  return inflectionsFixture
+  return EMPTY_INFLECTIONS
 })
 
-/* ── Wordlist data: merge live groups/context with fixture fallback ── */
+/* ── Wordlist data: live groups/context or explicit empty state ── */
 const wordlistData = computed(() => {
   const ctxData = wl.contextData.value
+  const liveList = {
+    ...EMPTY_WORDLIST.list,
+    groups: wl.groups.value,
+    footerMeta: `${wl.groups.value.reduce((s, g) => s + g.count, 0)} saved · ${wl.groups.value.length} languages`
+  }
   if (ctxData) {
-    return { list: { ...wordListFixture.list, groups: wl.groups.value.length ? wl.groups.value : wordListFixture.list.groups }, context: ctxData }
+    return { list: wl.groups.value.length ? liveList : EMPTY_WORDLIST.list, context: ctxData }
   }
   if (wl.hasData.value && wl.groups.value.length) {
-    return { list: { ...wordListFixture.list, groups: wl.groups.value, footerMeta: `${wl.groups.value.reduce((s, g) => s + g.count, 0)} saved · ${wl.groups.value.length} languages` }, context: wordListFixture.context }
+    return {
+      list: liveList,
+      context: {
+        word: '',
+        lang: '',
+        count: 0,
+        items: [],
+        footerMeta: 'Select a saved word to view context'
+      }
+    }
   }
-  return wordListFixture
+  return EMPTY_WORDLIST
 })
 
-/* ── Resources data: composable live data + fixture fallback ── */
-const usagePageData = computed(() => ({
-  ...resourcesFixture,
-  usage: {
-    ...resourcesFixture.usage,
-    ...(resources.usageData.value || {})
+function liveUsageFallback () {
+  const word = live.targetWord.value || lookupData.value.lemma || ''
+  const waiting = live.state.value === 'loading'
+  const idle = live.state.value === 'idle'
+  return {
+    word,
+    totalQuotes: 0,
+    authorsCount: 0,
+    filterAuthor: 'all',
+    authorChips: [{ id: 'all', label: 'All authors', count: null }],
+    groups: [],
+    officialReaderUrl: OFFICIAL_READER_URL,
+    isOfficialTextsPage: false,
+    footerMeta: idle
+      ? 'Look up a word to load usage examples'
+      : waiting
+        ? `${word || 'Lookup'} · loading usage examples`
+        : `${word || 'Lookup'} · no usage examples`
   }
+}
+
+function liveGrammarFallback () {
+  const lang = lookupData.value.lang || 'current language'
+  return {
+    language: lang,
+    sourceCount: 0,
+    linkedFrom: live.state.value === 'idle'
+      ? 'Look up a word to load grammar resources.'
+      : 'No grammar reference available for this lookup.',
+    sources: [],
+    browserUrl: OFFICIAL_GRAMMAR_URL,
+    reading: {
+      anchor: 'Grammar',
+      title: live.state.value === 'idle' ? 'No lookup yet' : 'No grammar reference available',
+      blocks: [
+        {
+          type: 'p',
+          html: live.state.value === 'idle'
+            ? 'Run a lookup first, then open Grammar again.'
+            : 'Alpheios did not return a grammar resource for the current language and selection.'
+        }
+      ]
+    },
+    footerMeta: live.state.value === 'idle' ? 'No lookup yet' : 'No grammar data'
+  }
+}
+
+function liveTreeFallback () {
+  if (live.state.value === 'idle') {
+    return {
+      ref: '',
+      textStrip: '',
+      nodes: [],
+      footerMeta: 'Look up or select a word to load treebank data',
+      treebankSrc: null,
+      officialReaderUrl: OFFICIAL_READER_URL,
+      isOfficialTextsPage: false,
+      suppressTree: false,
+      kind: 'idle'
+    }
+  }
+  return {
+    ref: '',
+    textStrip: '',
+    nodes: [],
+    footerMeta: 'No treebank for this page',
+    treebankSrc: null,
+    officialReaderUrl: OFFICIAL_READER_URL,
+    isOfficialTextsPage: false,
+    suppressTree: false,
+    kind: 'no-metadata'
+  }
+}
+
+/* ── Resources data: live data or explicit empty state ── */
+const usagePageData = computed(() => ({
+  usage: resources.usageData.value || liveUsageFallback()
 }))
 
 const grammarPageData = computed(() => ({
-  ...resourcesFixture,
-  grammar: {
-    ...resourcesFixture.grammar,
-    ...(resources.grammarData.value || {})
-  }
+  grammar: resources.grammarData.value || liveGrammarFallback()
 }))
 
 const treePageData = computed(() => ({
-  ...resourcesFixture,
-  tree: {
-    ...resourcesFixture.tree,
-    ...(resources.treeData.value || {})
-  }
+  tree: resources.treeData.value || liveTreeFallback()
 }))
 
 /* ── Trigger data fetches on page navigation ── */
@@ -214,7 +397,7 @@ const page = computed(() => uiStore.state.page)
 const langLabel = computed(() => {
   switch (page.value) {
     case 'lookup':
-    case 'morph':       return lookupData.value.lang || armaFixture.lang
+    case 'morph':       return lookupData.value.lang || 'Lookup'
     case 'inflections': return 'Inflections'
     case 'usage':       return 'Word Usage'
     case 'tree':        return 'Treebank'
@@ -247,7 +430,7 @@ function showAddedToast () {
   uiStore.showToast({
     kind: 'success',
     title: 'Added to your list',
-    body: `${lookupData.lemma} · ${lookupData.lang} · just now`
+    body: `${lookupData.value.lemma} · ${lookupData.value.lang} · just now`
   })
 }
 function showRetryToast () {
@@ -256,6 +439,26 @@ function showRetryToast () {
 function showSavedToast () {
   uiStore.showToast({ kind: 'success', title: 'Settings saved' })
 }
+function resetSettings () {
+  if (settingsPageRef.value && typeof settingsPageRef.value.reset === 'function') {
+    settingsPageRef.value.reset()
+  }
+}
+function logoutAuth () {
+  if (authPageRef.value && typeof authPageRef.value.logout === 'function') {
+    authPageRef.value.logout()
+  }
+}
+const settingsFooterMeta = computed(() =>
+  settingsPageRef.value && settingsPageRef.value.footerMeta
+    ? settingsPageRef.value.footerMeta
+    : (controller ? 'No changes' : '2 changes · unsaved')
+)
+const authFooterMeta = computed(() =>
+  authPageRef.value && authPageRef.value.footerMeta
+    ? authPageRef.value.footerMeta
+    : AUTH_SHELL.loggedIn.lastSync
+)
 </script>
 
 <template>
@@ -266,7 +469,7 @@ function showSavedToast () {
       <Popup
         :state="popupState"
         :data="lookupData"
-        :empty-states="emptyStatesFixture"
+        :empty-states="EMPTY_POPUP_STATES"
         @close="closeAll"
         @expand="expandToDrawer"
         @add="showAddedToast"
@@ -303,8 +506,8 @@ function showSavedToast () {
       <ResourcesPage   v-else-if="page === 'tree'"   mode="tree"    :data="treePageData" />
       <ResourcesPage   v-else-if="page === 'grammar'" mode="grammar" :data="grammarPageData" />
       <WordListPage    v-else-if="page === 'wordlist'" :data="wordlistData" @select-word="(p) => wl.selectWord(p.langCode, p.targetWord)" />
-      <AuthPage        v-else-if="page === 'user'"   :data="authFixture" />
-      <SettingsPage    v-else-if="page === 'opts'"   :data="settingsFixture" />
+      <AuthPage        v-else-if="page === 'user'"   ref="authPageRef" :data="AUTH_SHELL" />
+      <SettingsPage    v-else-if="page === 'opts'"   ref="settingsPageRef" :data="SETTINGS_SHELL" />
       <div v-else class="alph-app__page-stub">
         <p>Unknown page <code>{{ page }}</code>.</p>
       </div>
@@ -340,19 +543,15 @@ function showSavedToast () {
       <template v-else-if="page === 'usage'" #footer>
         <span class="alph-app__footer-meta">{{ usagePageData.usage.footerMeta }}</span>
         <Button variant="secondary"><Icon name="sync" :size="14" /></Button>
-        <Button variant="secondary">Cite all</Button>
       </template>
 
       <template v-else-if="page === 'tree'" #footer>
         <span class="alph-app__footer-meta">{{ treePageData.tree.footerMeta }}</span>
-        <Button variant="secondary"><Icon name="link" :size="14" /> Permalink</Button>
         <Button variant="secondary"><Icon name="help" :size="14" /></Button>
       </template>
 
       <template v-else-if="page === 'grammar'" #footer>
         <span class="alph-app__footer-meta">{{ grammarPageData.grammar.footerMeta }}</span>
-        <Button variant="secondary"><Icon name="arrow_back_ios_new" :size="14" /></Button>
-        <Button variant="secondary">§48 →</Button>
       </template>
 
       <template v-else-if="page === 'wordlist'" #footer>
@@ -362,14 +561,14 @@ function showSavedToast () {
       </template>
 
       <template v-else-if="page === 'user'" #footer>
-        <span class="alph-app__footer-meta">{{ authFixture.loggedIn.lastSync }}</span>
+        <span class="alph-app__footer-meta">{{ authFooterMeta }}</span>
         <Button variant="secondary"><Icon name="cloud_sync" :size="14" /> Sync</Button>
-        <Button variant="secondary"><Icon name="logout" :size="14" /> Log out</Button>
+        <Button variant="secondary" @click="logoutAuth"><Icon name="logout" :size="14" /> Log out</Button>
       </template>
 
       <template v-else-if="page === 'opts'" #footer>
-        <span class="alph-app__footer-meta">{{ controller ? 'Changes saved instantly' : '2 changes · unsaved' }}</span>
-        <Button variant="secondary">Reset</Button>
+        <span class="alph-app__footer-meta">{{ settingsFooterMeta }}</span>
+        <Button variant="secondary" @click="resetSettings">Reset</Button>
         <Button v-if="!controller" variant="primary" @click="showSavedToast">Save</Button>
       </template>
     </Drawer>

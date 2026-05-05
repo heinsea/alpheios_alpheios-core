@@ -7,9 +7,7 @@
  * card fully expanded, plus principal parts and a per-form summary
  * matrix when available.
  *
- * For Stage 3 we reuse the same `arma` fixture so visual styling can
- * be verified in-extension. Stage 4 wires `useLookup()` and feeds in
- * disambiguated morph candidates.
+ * Stage 4 wires `useLookup()` and feeds in disambiguated morph candidates.
  */
 
 import { computed } from 'vue'
