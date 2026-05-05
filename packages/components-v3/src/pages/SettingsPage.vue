@@ -20,6 +20,7 @@ import Toggle from '../primitives/Toggle.vue'
 import Slider from '../primitives/Slider.vue'
 import Segmented from '../primitives/Segmented.vue'
 import { useAppController } from '../composables/use-app-controller.js'
+import { uiStore } from '../store/ui-store.js'
 
 const props = defineProps({
   data: { type: Object, required: true }
@@ -180,6 +181,9 @@ function populateFromApi () {
       const found = allOpts.find(o => o.key === mapping.key && o.group === mapping.group)
       if (found !== undefined) {
         values[fixtureId] = normalizeValueForLocal(fixtureId, found.value)
+        if (fixtureId === 'panelPosition') {
+          uiStore.setDrawerPosition(values[fixtureId])
+        }
       }
     }
     const resOpts = controller.api.settings.getResourceOptions && controller.api.settings.getResourceOptions()
@@ -190,6 +194,9 @@ function populateFromApi () {
 
 function updateSetting (key, value) {
   values[key] = value
+  if (key === 'panelPosition') {
+    uiStore.setDrawerPosition(value)
+  }
   if (!controller) return
   const mapping = OPTION_MAP[key]
   if (!mapping) return

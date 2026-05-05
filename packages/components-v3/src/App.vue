@@ -112,7 +112,7 @@ const SETTINGS_SHELL = {
       {
         title: 'Layout',
         rows: [
-          { id: 'panelPosition', kind: 'segInline', label: 'Panel position', value: 'left', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
+          { id: 'panelPosition', kind: 'segInline', label: 'Panel position', value: 'right', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
           { id: 'popupMaxWidth', kind: 'slider', label: 'Popup max width', min: 400, max: 1200, value: 800, unit: '' },
           { id: 'hideLogin', kind: 'toggle', label: 'Hide login prompt', value: false }
         ]

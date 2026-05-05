@@ -35,7 +35,7 @@
       }
     },
     "panelPosition": {
-      "defaultValue": "left",
+      "defaultValue": "right",
       "labelText": "Panel position:",
       "values": [
         {

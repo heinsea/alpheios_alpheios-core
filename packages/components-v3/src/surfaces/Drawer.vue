@@ -22,6 +22,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from '../primitives/Button.vue'
 import Icon from '../primitives/Icon.vue'
 import { uiStore } from '../store/ui-store.js'
+import {
+  drawerLayoutClass,
+  drawerPositionStyle,
+  drawerSizeStyle,
+  nextDrawerWidth,
+  normalizeDrawerPosition,
+  resizeHandlePosition
+} from './drawer-resize.js'
 
 defineProps({
   /** Optional override for the topbar lang label. */
@@ -44,23 +52,36 @@ const bottomTabs = [
 ]
 
 const currentPage = computed(() => uiStore.state.page)
+const drawerPosition = computed(() => normalizeDrawerPosition(uiStore.state.drawerPosition))
 const drawerWidth = ref(444)
-const drawerStyle = computed(() => ({ width: `${drawerWidth.value}px` }))
-const panelStyle = computed(() => ({ width: `${Math.max(296, drawerWidth.value - 64)}px` }))
+const drawerStyle = computed(() => ({
+  ...drawerSizeStyle(drawerWidth.value),
+  ...drawerPositionStyle(drawerPosition.value)
+}))
+const resizeSide = computed(() => resizeHandlePosition(drawerPosition.value))
 let resizeStartX = 0
 let resizeStartWidth = 0
 let resizePointerId = null
 
 function clampDrawerWidth (width) {
-  const viewportMax = typeof window !== 'undefined'
-    ? Math.max(360, Math.floor(window.innerWidth * 0.9))
-    : 900
-  return Math.min(Math.max(width, 360), Math.min(viewportMax, 900))
+  return nextDrawerWidth({
+    position: drawerPosition.value,
+    startWidth: width,
+    startX: 0,
+    currentX: 0,
+    viewportWidth: typeof window !== 'undefined' ? window.innerWidth : undefined
+  })
 }
 
 function onResizeMove (event) {
   if (resizePointerId !== null && event.pointerId !== resizePointerId) return
-  drawerWidth.value = clampDrawerWidth(resizeStartWidth + (resizeStartX - event.clientX))
+  drawerWidth.value = nextDrawerWidth({
+    position: drawerPosition.value,
+    startWidth: resizeStartWidth,
+    startX: resizeStartX,
+    currentX: event.clientX,
+    viewportWidth: typeof window !== 'undefined' ? window.innerWidth : undefined
+  })
 }
 
 function stopResize () {
@@ -104,9 +125,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <aside class="alph-drawer alpheios-v3-scope" :style="drawerStyle" aria-label="Alpheios reading panel">
+  <aside
+    class="alph-drawer alpheios-v3-scope"
+    :class="drawerLayoutClass(drawerPosition)"
+    :style="drawerStyle"
+    aria-label="Alpheios reading panel"
+  >
     <div
       class="alph-drawer__resize"
+      :class="`alph-drawer__resize--${resizeSide}`"
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize Alpheios panel"
@@ -154,7 +181,7 @@ onBeforeUnmount(() => {
       </div>
     </nav>
 
-    <section class="alph-drawer__panel" :style="panelStyle" :aria-label="`Alpheios — ${currentPage}`">
+    <section class="alph-drawer__panel" :aria-label="`Alpheios — ${currentPage}`">
 
       <header class="alph-drawer__topbar">
         <div class="alph-drawer__topbar-title">
@@ -193,13 +220,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .alph-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0;
+  position: fixed; top: 0; bottom: 0;
   z-index: 50;
   display: flex;
   /* EXPLICIT total width with hard-coded fallback. Tokens (--drawer-sidebar,
    * --drawer-content) might fail to resolve on hosts that strip CSS
    * variables — in that case calc() falls back to the literal 444 px. */
-  width: 444px;
+  width: var(--alph-drawer-width, 444px);
   height: 100vh;
   pointer-events: auto;
 }
@@ -207,23 +234,25 @@ onBeforeUnmount(() => {
 .alph-drawer__resize {
   position: absolute;
   top: 0;
-  left: 0;
   bottom: 0;
   width: 12px;
   cursor: col-resize;
   z-index: 5;
   touch-action: none;
 }
+.alph-drawer__resize--left { left: 0; }
+.alph-drawer__resize--right { right: 0; }
 .alph-drawer__resize::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
   width: 2px;
   background: rgba(0, 0, 0, 0.10);
   transition: background-color var(--motion-fast), box-shadow var(--motion-fast);
 }
+.alph-drawer__resize--left::before { left: 0; }
+.alph-drawer__resize--right::before { right: 0; }
 .alph-drawer__resize:hover::before {
   background: var(--on-surface);
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
@@ -236,17 +265,29 @@ onBeforeUnmount(() => {
 }
 
 /* ── sidebar ── */
+.alph-drawer--left .alph-drawer__sidebar { order: 1; }
+.alph-drawer--right .alph-drawer__sidebar { order: 2; }
 .alph-drawer__sidebar {
-  order: 2;
   width: 64px;
   width: var(--drawer-sidebar);
   flex-shrink: 0;
   background: var(--glass-surface-low);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border-left: 1px solid var(--glass-border);
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
   display: flex; flex-direction: column;
+}
+.alph-drawer--left .alph-drawer__sidebar {
+  border-right: 1px solid rgba(0, 0, 0, 0.04);
+}
+.alph-drawer--right .alph-drawer__sidebar {
+  border-left: 1px solid rgba(0, 0, 0, 0.04);
+}
+[data-theme="dark"] .alph-drawer--left .alph-drawer__sidebar {
+  border-right-color: rgba(255, 255, 255, 0.05);
+}
+[data-theme="dark"] .alph-drawer--right .alph-drawer__sidebar {
+  border-left-color: rgba(255, 255, 255, 0.05);
 }
 [data-theme="dark"] .alph-drawer__sidebar {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
@@ -323,25 +364,44 @@ onBeforeUnmount(() => {
 }
 
 /* ── panel ── */
+.alph-drawer--left .alph-drawer__panel { order: 2; }
+.alph-drawer--right .alph-drawer__panel { order: 1; }
 .alph-drawer__panel {
-  order: 1;
   flex: 0 0 auto;
+  width: var(--alph-drawer-panel-width, 380px);
   min-width: 296px;
   height: 100vh;
   background: var(--glass-surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.alph-drawer--right .alph-drawer__panel {
   border-left: 1px solid var(--glass-border);
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
     -8px 0 32px 0 var(--glass-shadow);
-  display: flex; flex-direction: column;
-  overflow: hidden;
+}
+.alph-drawer--left .alph-drawer__panel {
+  border-right: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.4),
+    8px 0 32px 0 var(--glass-shadow);
 }
 [data-theme="dark"] .alph-drawer__panel {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+[data-theme="dark"] .alph-drawer--right .alph-drawer__panel {
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
     -8px 0 32px 0 var(--glass-shadow);
+}
+[data-theme="dark"] .alph-drawer--left .alph-drawer__panel {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    8px 0 32px 0 var(--glass-shadow);
 }
 
 .alph-drawer__topbar {

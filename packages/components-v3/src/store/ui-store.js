@@ -16,6 +16,7 @@
  */
 
 import { reactive, readonly, computed } from 'vue'
+import { DEFAULT_DRAWER_POSITION } from '../surfaces/drawer-resize.js'
 
 /** All possible surface ids. Only one is visible at a time. */
 export const SURFACES = ['popup', 'drawer', 'toolbar', 'hidden']
@@ -35,11 +36,13 @@ export const PAGES = [
 
 /** Popup display states (DESIGN.md §7.1, mockup popup-states.html). */
 export const POPUP_STATES = ['default', 'loading', 'no-result', 'error']
+export const DRAWER_POSITIONS = ['left', 'right']
 
 const state = reactive({
   surface: 'drawer',           // current surface
   page: 'lookup',              // current drawer page
   popupState: 'default',       // current popup state
+  drawerPosition: DEFAULT_DRAWER_POSITION, // mirrors UI panelPosition setting
   theme: 'light',              // 'light' | 'dark' (Stage 5 wires auto-detect)
   toast: null,                 // { kind, title, body, ttl } or null
   // Set of pages that currently have data (controls sidebar disable state).
@@ -65,6 +68,10 @@ export const uiStore = {
   setPopupState (ps) {
     if (!POPUP_STATES.includes(ps)) throw new Error(`Unknown popup state: ${ps}`)
     state.popupState = ps
+  },
+  setDrawerPosition (position) {
+    if (!DRAWER_POSITIONS.includes(position)) throw new Error(`Unknown drawer position: ${position}`)
+    state.drawerPosition = position
   },
   setTheme (t) {
     if (!['light', 'dark'].includes(t)) throw new Error(`Unknown theme: ${t}`)
