@@ -19,6 +19,7 @@ import { computed } from 'vue'
 import Button from '../primitives/Button.vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
+import { definitionSenseItems } from '../pages/lookup-definitions.js'
 
 const props = defineProps({
   state: { type: String, default: 'default' },
@@ -59,6 +60,10 @@ const noResultData = computed(() => {
 })
 const cachedPos = computed(() => props.emptyStates.error?.cachedPos || [])
 const cachedDefs = computed(() => props.emptyStates.error?.cachedDefs || [])
+const popupDefinitions = computed(() => {
+  const definitions = props.state === 'error' ? cachedDefs.value : props.data.definitions || []
+  return definitionSenseItems(definitions).slice(0, 3)
+})
 
 const showFullBody = computed(() => props.state === 'default' || props.state === 'error')
 </script>
@@ -125,9 +130,27 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
             </div>
           </template>
           <template v-else>
-            <div v-for="(d, i) in (state === 'error' ? cachedDefs : data.definitions || []).slice(0, 3)" :key="i" class="alph-popup__def">
-              <span class="alph-popup__def-num">{{ i + 1 }}.</span>
-              <span class="alph-popup__def-text" v-html="d" />
+            <div v-for="(def, i) in popupDefinitions" :key="i" class="alph-popup__def">
+              <span class="alph-popup__def-num">{{ def.label }}</span>
+              <div v-if="def.blocks" class="alph-popup__def-text alph-popup__def-rich">
+                <p
+                  v-for="(block, blockIndex) in def.blocks"
+                  :key="blockIndex"
+                  class="alph-popup__dict-block"
+                  :class="{
+                    'alph-popup__dict-block--major': block.kind === 'major',
+                    'alph-popup__dict-block--sub': block.kind === 'sub',
+                    'alph-popup__dict-source': block.kind === 'source'
+                  }"
+                >
+                  <span
+                    v-if="block.heading"
+                    :class="block.kind === 'sub' ? 'alph-popup__dict-subheading' : 'alph-popup__dict-heading'"
+                  >{{ block.heading }}</span>
+                  <span v-if="block.html" v-html="block.html" />
+                </p>
+              </div>
+              <span v-else class="alph-popup__def-text" v-html="def.html" />
             </div>
           </template>
         </div>
@@ -294,6 +317,56 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 .alph-popup__def-text {
   font-size: 12px; line-height: 16px;
   color: var(--on-surface);
+}
+.alph-popup__def-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 2px;
+}
+.alph-popup__dict-block {
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--divider);
+}
+.alph-popup__dict-block--major {
+  margin-top: 4px;
+  padding: 10px 10px 10px 12px;
+  border-left-color: var(--on-surface);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-md);
+}
+.alph-popup__dict-block--sub {
+  padding: 2px 0 2px 12px;
+  border-left-color: var(--outline-variant);
+}
+.alph-popup__dict-heading {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.alph-popup__dict-subheading {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.alph-popup__def-text :deep(.alph-lookup__dict-quote) {
+  color: var(--on-surface-variant);
+  font-weight: 600;
+  font-style: italic;
+}
+.alph-popup__dict-source {
+  margin: 4px 0 0;
+  padding: 9px 10px;
+  border-left: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
 }
 .alph-popup__skeleton {
   display: inline-block;

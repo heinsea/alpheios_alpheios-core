@@ -33,6 +33,10 @@ const grammar = computed(() => props.data.grammar || { sources: [], reading: { b
 const grammarFrame = ref(null)
 const grammarSrc = ref(grammar.value.browserUrl || '')
 watch(() => grammar.value.browserUrl, (url) => { if (url) grammarSrc.value = url }, { immediate: true })
+const grammarTitle = computed(() => {
+  const active = grammar.value.sources && grammar.value.sources.find(source => source.active)
+  return (active && active.title) || 'Grammar'
+})
 
 /* ─── Tree mode local state ─── */
 const tree = computed(() => props.data.tree || { nodes: [], footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
@@ -148,7 +152,7 @@ defineExpose({ footerMeta })
           </button>
         </div>
         <div class="alph-resources__browser-title">
-          <span>Allen and Greenough</span>
+          <span>{{ grammarTitle }}</span>
           <small>{{ grammar.language || 'Latin' }} grammar</small>
         </div>
         <a
@@ -167,7 +171,7 @@ defineExpose({ footerMeta })
           ref="grammarFrame"
           :src="grammarSrc"
           class="alph-resources__grammar-iframe"
-          title="Allen and Greenough grammar"
+          :title="`${grammarTitle} grammar`"
         />
       </div>
 

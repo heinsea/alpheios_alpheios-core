@@ -10,15 +10,14 @@
 
 import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
+import { buildGrammarData } from '../lib/resources-helpers.js'
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
-const OFFICIAL_GRAMMAR_URL = 'https://grammars.alpheios.net/allen-greenough/index.htm?ts=1777980366365#table-of-contents'
-
 function isOfficialTextsPage () {
   try { return window.location.hostname === 'texts.alpheios.net' } catch { return false }
 }
 
-export function useResources () {
+export function useResources (options = {}) {
   const controller = useAppController()
   if (!controller) {
     return {
@@ -36,6 +35,9 @@ export function useResources () {
   const usageData = ref(null)
   const grammarData = ref(null)
   const treeData = ref(null)
+  const getLanguageCode = typeof options.getLanguageCode === 'function'
+    ? options.getLanguageCode
+    : () => null
 
   /* ── Word Usage Examples ── */
   function buildUsage () {
@@ -106,49 +108,16 @@ export function useResources () {
 
   /* ── Grammar ── */
   function buildGrammar () {
-    const langCode = store.state.app.currentLanguageCode
+    const langCode = getLanguageCode() || store.state.app.currentLanguageCode
     if (!langCode) { grammarData.value = null; return }
+    const langInfo = controller.constructor.getLanguageName(langCode)
     const gd = api.grammarData && api.grammarData[langCode]
-    if (!gd || !gd.url) {
-      if (store.state.app.homonymDataReady) {
-        grammarData.value = {
-          language: store.state.app.currentLanguageName || langCode,
-          sourceCount: 0,
-          linkedFrom: 'No grammar reference available for this lookup.',
-          sources: [],
-          browserUrl: OFFICIAL_GRAMMAR_URL,
-          reading: {
-            anchor: 'Grammar',
-            title: 'No grammar reference available',
-            blocks: [
-              { type: 'p', html: 'Alpheios did not return a grammar resource for the current language and selection.' }
-            ]
-          },
-          footerMeta: 'No grammar data'
-        }
-      } else {
-        grammarData.value = null
-      }
-      return
-    }
-
-    grammarData.value = {
-      language: store.state.app.currentLanguageName || langCode,
-      sourceCount: 1,
-      linkedFrom: `Grammar reference for ${store.state.app.currentLanguageName || langCode}`,
-      browserUrl: OFFICIAL_GRAMMAR_URL,
-      sources: [
-        { id: 'live', title: gd.provider || 'Allen and Greenough', meta: gd.url, url: gd.url, active: true }
-      ],
-      reading: {
-        anchor: gd.provider || 'Grammar',
-        title: 'Open grammar reference',
-        blocks: [
-          { type: 'p', html: `Open the full grammar via <a class="alph-resources__crossref" href="${gd.url}" target="_blank" rel="noopener">${gd.provider || 'this link'}</a>.` }
-        ]
-      },
-      footerMeta: `${gd.provider || 'Grammar'} · official browser`
-    }
+    grammarData.value = buildGrammarData({
+      langCode,
+      langName: (langInfo && langInfo.name) || store.state.app.currentLanguageName || langCode,
+      grammarEntry: gd,
+      hasLookup: store.state.app.homonymDataReady
+    })
   }
 
   /* ── Treebank ── */
@@ -196,9 +165,13 @@ export function useResources () {
     buildUsage()
   }
 
-  async function refreshGrammar () {
-    const languageID = store.state.app.currentLanguageID
+  async function refreshGrammar (langCode = null) {
+    const code = langCode || getLanguageCode() || store.state.app.currentLanguageCode
+    const languageID = code
+      ? controller.constructor.getLanguageName(code).id
+      : store.state.app.currentLanguageID
     if (!languageID) return
+    buildGrammar()
     await api.restoreGrammarIndex(languageID)
   }
 

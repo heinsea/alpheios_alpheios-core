@@ -22,6 +22,7 @@ import { ref, computed } from 'vue'
 import Button from '../primitives/Button.vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
+import { definitionSenseItems } from './lookup-definitions.js'
 
 const props = defineProps({
   /** Lookup payload from live data or an explicit empty state. */
@@ -34,6 +35,7 @@ const showShortDefs = ref(true)
 function toggleShortDefs () { showShortDefs.value = !showShortDefs.value }
 
 const recognizedPos = computed(() => props.data.recognized)
+const definitionSenses = computed(() => definitionSenseItems(props.data.definitions))
 </script>
 
 <template>
@@ -97,12 +99,33 @@ const recognizedPos = computed(() => props.data.recognized)
       </Button>
     </header>
     <div v-if="showShortDefs" class="alph-lookup__pad">
-      <ol class="alph-lookup__defs">
-        <li v-for="(def, i) in data.definitions" :key="i" class="alph-lookup__def">
-          <span class="alph-lookup__def-num">{{ i + 1 }}.</span>
-          <span class="alph-lookup__def-text" v-html="def" />
-        </li>
-      </ol>
+      <div class="alph-lookup__defs">
+        <article v-for="(def, i) in definitionSenses" :key="i" class="alph-lookup__def">
+          <span class="alph-lookup__def-num">{{ def.label }}</span>
+          <div class="alph-lookup__def-body">
+            <span class="alph-lookup__def-label">Sense</span>
+            <div v-if="def.blocks" class="alph-lookup__def-text alph-lookup__def-rich">
+              <p
+                v-for="(block, blockIndex) in def.blocks"
+                :key="blockIndex"
+                class="alph-lookup__dict-block"
+                :class="{
+                  'alph-lookup__dict-block--major': block.kind === 'major',
+                  'alph-lookup__dict-block--sub': block.kind === 'sub',
+                  'alph-lookup__dict-source': block.kind === 'source'
+                }"
+              >
+                <span
+                  v-if="block.heading"
+                  :class="block.kind === 'sub' ? 'alph-lookup__dict-subheading' : 'alph-lookup__dict-heading'"
+                >{{ block.heading }}</span>
+                <span v-if="block.html" v-html="block.html" />
+              </p>
+            </div>
+            <div v-else class="alph-lookup__def-text" v-html="def.html" />
+          </div>
+        </article>
+      </div>
     </div>
 
     <!-- ─── Principal parts ─── -->
@@ -214,22 +237,105 @@ const recognizedPos = computed(() => props.data.recognized)
 /* definitions */
 .alph-lookup__defs { margin: 0; padding: 0; list-style: none; }
 .alph-lookup__def {
-  display: flex; gap: 10px;
-  padding: 8px 0;
-  border-top: 1px solid var(--divider);
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px 10px 10px 8px;
+  border: 1px solid var(--outline-variant);
+  border-left: 3px solid var(--on-surface);
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
 }
-.alph-lookup__def:first-child { border-top: 0; }
+.alph-lookup__def + .alph-lookup__def { margin-top: 7px; }
 .alph-lookup__def-num {
-  font-size: 11px; color: var(--on-surface-variant);
-  opacity: 0.6;
-  width: 18px; flex-shrink: 0;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.alph-lookup__def-body { min-width: 0; }
+.alph-lookup__def-label {
+  display: inline-block;
+  margin-bottom: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
 }
 .alph-lookup__def-text {
-  font-size: 12px; line-height: 17px;
+  font-size: 12px; line-height: 18px;
   color: var(--on-surface);
 }
 .alph-lookup__def-text :deep(em) { font-style: italic; color: var(--on-surface-variant); }
+.alph-lookup__def-text :deep(br) { content: ""; display: block; margin-top: 6px; }
+.alph-lookup__def-text :deep(p) { margin: 0 0 6px; }
+.alph-lookup__def-text :deep(p:last-child) { margin-bottom: 0; }
+.alph-lookup__def-text :deep(ol),
+.alph-lookup__def-text :deep(ul) {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.alph-lookup__def-text :deep(li + li) { margin-top: 3px; }
+.alph-lookup__def-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 2px;
+}
+.alph-lookup__dict-block {
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--divider);
+}
+.alph-lookup__dict-block--major {
+  margin-top: 4px;
+  padding: 10px 10px 10px 12px;
+  border-left-color: var(--on-surface);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-md);
+}
+.alph-lookup__dict-block--sub {
+  padding: 2px 0 2px 12px;
+  border-left-color: var(--outline-variant);
+}
+.alph-lookup__dict-heading {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.alph-lookup__dict-subheading {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.alph-lookup__def-text :deep(.alph-lookup__dict-quote) {
+  color: var(--on-surface-variant);
+  font-weight: 600;
+  font-style: italic;
+}
+.alph-lookup__dict-source {
+  margin: 4px 0 0;
+  padding: 9px 10px;
+  border-left: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+}
 
 /* data-card */
 .alph-lookup__data-card {

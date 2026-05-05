@@ -43,6 +43,12 @@ import { useAppController } from './composables/use-app-controller.js'
 import { useWordList } from './composables/use-wordlist.js'
 import { useInflections } from './composables/use-inflections.js'
 import { useResources } from './composables/use-resources.js'
+import {
+  lookupLanguageItems,
+  resolveLookupLanguageCode,
+  selectLookupLanguage
+} from './lib/wordlist-helpers.js'
+import { buildGrammarData } from './lib/resources-helpers.js'
 
 const EMPTY_POPUP_STATES = {
   loading: { lemma: '', lang: '', title: 'Looking up', desc: 'Alpheios is querying lexical data.' },
@@ -97,7 +103,6 @@ const EMPTY_WORDLIST = {
 }
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
-const OFFICIAL_GRAMMAR_URL = 'https://grammars.alpheios.net/allen-greenough/index.htm?ts=1777980366365#table-of-contents'
 
 const SETTINGS_SHELL = {
   tabs: [
@@ -209,6 +214,34 @@ const lookupData = computed(() => {
 const search = ref('')
 watch(() => live.targetWord.value, (w) => { if (w) search.value = w })
 
+const lookupLanguageOption = computed(() => controller && controller.api.settings
+  ? controller.api.settings.getFeatureOptions().items.lookupLanguage
+  : null
+)
+const lookupLanguageOptions = computed(() => lookupLanguageItems(lookupLanguageOption.value))
+const selectedLookupLangValue = ref('')
+const selectedLookupLang = computed(() => resolveLookupLanguageCode({
+  selectedRefValue: selectedLookupLangValue.value,
+  storeState: controller && controller._store && controller._store.state.app,
+  option: lookupLanguageOption.value
+}))
+const selectedLookupLangLabel = computed(() => {
+  const selected = lookupLanguageOptions.value.find(item => item.value === selectedLookupLang.value)
+  return selected ? selected.label : selectedLookupLang.value
+})
+
+function onLookupLanguageChange (event) {
+  if (!controller) return
+  const code = event.target.value
+  const option = lookupLanguageOptions.value.find(item => item.value === code)
+  const selected = selectLookupLanguage({
+    option: lookupLanguageOption.value,
+    store: controller._store,
+    selectedText: option ? option.label : code
+  })
+  selectedLookupLangValue.value = selected || code
+}
+
 function onSearchEnter (value) {
   if (!controller || !value || !value.trim()) return
   // Match v2 lookup.vue: typed lookups are driven by the lookup-language
@@ -218,11 +251,11 @@ function onSearchEnter (value) {
   const s = controller._store.state.app
   const lookupLanguage = controller.api.settings &&
     controller.api.settings.getFeatureOptions().items.lookupLanguage
-  const code =
-    s.selectedLookupLangCode ||
-    (lookupLanguage && lookupLanguage.currentValue) ||
-    s.currentLanguageCode ||
-    'lat'
+  const code = resolveLookupLanguageCode({
+    selectedRefValue: selectedLookupLangValue.value,
+    storeState: s,
+    option: lookupLanguage
+  })
   if (typeof controller.runLookup === 'function') {
     controller.runLookup(value, code)
   }
@@ -230,7 +263,7 @@ function onSearchEnter (value) {
 
 const wl = useWordList()
 const infl = useInflections()
-const resources = useResources()
+const resources = useResources({ getLanguageCode: () => selectedLookupLang.value })
 const settingsPageRef = ref(null)
 const authPageRef = ref(null)
 
@@ -293,29 +326,12 @@ function liveUsageFallback () {
 }
 
 function liveGrammarFallback () {
-  const lang = lookupData.value.lang || 'current language'
-  return {
-    language: lang,
-    sourceCount: 0,
-    linkedFrom: live.state.value === 'idle'
-      ? 'Look up a word to load grammar resources.'
-      : 'No grammar reference available for this lookup.',
-    sources: [],
-    browserUrl: OFFICIAL_GRAMMAR_URL,
-    reading: {
-      anchor: 'Grammar',
-      title: live.state.value === 'idle' ? 'No lookup yet' : 'No grammar reference available',
-      blocks: [
-        {
-          type: 'p',
-          html: live.state.value === 'idle'
-            ? 'Run a lookup first, then open Grammar again.'
-            : 'Alpheios did not return a grammar resource for the current language and selection.'
-        }
-      ]
-    },
-    footerMeta: live.state.value === 'idle' ? 'No lookup yet' : 'No grammar data'
-  }
+  return buildGrammarData({
+    langCode: selectedLookupLang.value,
+    langName: selectedLookupLangLabel.value || lookupData.value.lang || 'current language',
+    grammarEntry: null,
+    hasLookup: live.state.value !== 'idle'
+  })
 }
 
 function liveTreeFallback () {
@@ -368,7 +384,7 @@ watch(() => uiStore.state.page, async (newPage) => {
     } catch { /* swallow */ }
   } else if (newPage === 'grammar') {
     try {
-      await resources.refreshGrammar()
+      await resources.refreshGrammar(selectedLookupLang.value)
     } catch { /* swallow */ }
   } else if (newPage === 'tree') {
     try {
@@ -377,6 +393,13 @@ watch(() => uiStore.state.page, async (newPage) => {
   } else if (newPage === 'inflections') {
     store.state.app.hasInflData && infl.rebuild && infl.rebuild()
   }
+})
+
+watch(() => selectedLookupLang.value, async (langCode) => {
+  if (!controller || page.value !== 'grammar' || !langCode) return
+  try {
+    await resources.refreshGrammar(langCode)
+  } catch { /* swallow */ }
 })
 
 onMounted(() => {
@@ -433,6 +456,31 @@ function showAddedToast () {
     body: `${lookupData.value.lemma} · ${lookupData.value.lang} · just now`
   })
 }
+function addCurrentLookupToWordList () {
+  if (!wl.addCurrentLookup()) {
+    uiStore.showToast({
+      kind: 'info',
+      title: 'Nothing to add yet',
+      body: 'Run a lookup first, then add the result to your list.'
+    })
+    return
+  }
+  showAddedToast()
+}
+async function importWordListFile (file) {
+  const imported = await wl.importFile(file)
+  uiStore.showToast(imported
+    ? { kind: 'success', title: 'Word list imported' }
+    : { kind: 'info', title: 'No words imported' }
+  )
+}
+function exportWordList () {
+  const exported = wl.exportList()
+  uiStore.showToast(exported
+    ? { kind: 'success', title: 'Word list exported' }
+    : { kind: 'info', title: 'No saved words to export' }
+  )
+}
 function showRetryToast () {
   uiStore.showToast({ kind: 'info', title: 'Retrying lookup…' })
 }
@@ -472,7 +520,7 @@ const authFooterMeta = computed(() =>
         :empty-states="EMPTY_POPUP_STATES"
         @close="closeAll"
         @expand="expandToDrawer"
-        @add="showAddedToast"
+        @add="addCurrentLookupToWordList"
         @retry="showRetryToast"
       />
     </div>
@@ -493,7 +541,22 @@ const authFooterMeta = computed(() =>
           @enter="onSearchEnter"
         >
           <template #suffix>
-            <Chip variant="filled">{{ lookupData.lang }}</Chip>
+            <select
+              v-if="lookupLanguageOptions.length"
+              class="alph-app__lookup-lang"
+              :value="selectedLookupLang"
+              :title="`Lookup language: ${selectedLookupLangLabel}`"
+              @change="onLookupLanguageChange"
+            >
+              <option
+                v-for="item in lookupLanguageOptions"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.label }}
+              </option>
+            </select>
+            <Chip v-else variant="filled">{{ lookupData.lang }}</Chip>
           </template>
         </RecessedInput>
       </template>
@@ -505,7 +568,13 @@ const authFooterMeta = computed(() =>
       <ResourcesPage   v-else-if="page === 'usage'"  mode="usage"   :data="usagePageData" />
       <ResourcesPage   v-else-if="page === 'tree'"   mode="tree"    :data="treePageData" />
       <ResourcesPage   v-else-if="page === 'grammar'" mode="grammar" :data="grammarPageData" />
-      <WordListPage    v-else-if="page === 'wordlist'" :data="wordlistData" @select-word="(p) => wl.selectWord(p.langCode, p.targetWord)" />
+      <WordListPage
+        v-else-if="page === 'wordlist'"
+        :data="wordlistData"
+        @select-word="(p) => wl.selectWord(p.langCode, p.targetWord)"
+        @import-file="importWordListFile"
+        @export-list="exportWordList"
+      />
       <AuthPage        v-else-if="page === 'user'"   ref="authPageRef" :data="AUTH_SHELL" />
       <SettingsPage    v-else-if="page === 'opts'"   ref="settingsPageRef" :data="SETTINGS_SHELL" />
       <div v-else class="alph-app__page-stub">
@@ -514,7 +583,7 @@ const authFooterMeta = computed(() =>
 
       <!-- Footer — varies per page -->
       <template v-if="page === 'lookup'" #footer>
-        <Button variant="primary" block @click="showAddedToast">
+        <Button variant="primary" block @click="addCurrentLookupToWordList">
           <Icon name="add" :size="14" />
           Add to list
         </Button>
@@ -556,8 +625,7 @@ const authFooterMeta = computed(() =>
 
       <template v-else-if="page === 'wordlist'" #footer>
         <span class="alph-app__footer-meta">{{ wordlistData.list.footerMeta }}</span>
-        <Button variant="secondary">Import</Button>
-        <Button variant="primary">Export all</Button>
+        <Button variant="primary" @click="exportWordList">Export all</Button>
       </template>
 
       <template v-else-if="page === 'user'" #footer>
@@ -615,6 +683,23 @@ const authFooterMeta = computed(() =>
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.alph-app__lookup-lang {
+  max-width: 118px;
+  height: 24px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font: inherit;
+  font-size: 11px;
+  padding: 0 22px 0 8px;
+  cursor: pointer;
+}
+.alph-app__lookup-lang:focus {
+  outline: 1px solid var(--primary);
+  outline-offset: 1px;
 }
 
 /* Footer button width tuning. The block primary takes the remaining row,

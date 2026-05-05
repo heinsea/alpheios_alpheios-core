@@ -14,6 +14,11 @@
 
 import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
+import {
+  buildWordListGroups,
+  csvForWordList,
+  parseWordListImport
+} from '../lib/wordlist-helpers.js'
 
 export function useWordList () {
   const controller = useAppController()
@@ -23,7 +28,11 @@ export function useWordList () {
       contextData: ref(null),
       loading: ref(false),
       hasData: ref(false),
-      selectWord: () => {}
+      selectWord: () => {},
+      addCurrentLookup: () => false,
+      exportList: () => false,
+      importFile: () => Promise.resolve(false),
+      rebuild: () => {}
     }
   }
 
@@ -45,33 +54,73 @@ export function useWordList () {
   function rebuild () {
     const wordLists = api.getAllWordLists()
     if (!wordLists) { groups.value = []; hasData.value = false; return }
+    groups.value = buildWordListGroups({ wordLists, langNameFor })
 
-    const entries = typeof wordLists === 'object' && !Array.isArray(wordLists)
-      ? Object.entries(wordLists)
-      : []
-
-    let total = 0
-    groups.value = entries.map(([langCode, wl]) => {
-      const values = (wl && typeof wl.values === 'function')
-        ? wl.values() : (Array.isArray(wl && wl.values) ? wl.values : [])
-      const words = values.map(item => ({
-        form: item.targetWord || '',
-        pos: item.lemmasList || '',
-        ctx: Array.isArray(item.context) ? item.context.length : 0,
-        langCode: item.languageCode || langCode
-      }))
-      total += words.length
-      return {
-        id: langCode,
-        name: langNameFor(langCode),
-        count: words.length,
-        expanded: words.length > 0,
-        sort: 'A–Z',
-        words
-      }
-    }).filter(g => g.words.length > 0)
-
+    const total = groups.value.reduce((sum, group) => sum + group.words.length, 0)
     hasData.value = total > 0
+  }
+
+  function addCurrentLookup () {
+    const homonym = api.homonym || (api.app && api.app.homonym)
+    if (!homonym || !homonym.targetWord || !controller._wordlistC) return false
+    controller._wordlistC.onHomonymReady(homonym)
+    if (homonym.hasShortDefs && typeof controller._wordlistC.onDefinitionsReady === 'function') {
+      controller._wordlistC.onDefinitionsReady({ requestType: 'shortDefs', homonym })
+    }
+    rebuild()
+    return true
+  }
+
+  function exportList () {
+    const words = groups.value.flatMap(group => group.words)
+    if (!words.length || typeof document === 'undefined' || typeof Blob === 'undefined') return false
+    const data = csvForWordList(words)
+    const blob = new Blob([data], { type: 'text/tab-separated-values' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'alpheios-wordlist.tsv'
+    ;(document.getElementById('alpheios-panel-inner') || document.body).appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    return true
+  }
+
+  async function importFile (file) {
+    if (!file || !controller._wordlistC) return false
+    const text = await file.text()
+    const fallbackLangCode = store.state.app.selectedLookupLangCode ||
+      store.state.app.currentLanguageCode ||
+      'lat'
+    const items = parseWordListImport(text, fallbackLangCode)
+    if (!items.length) return false
+
+    for (const item of items) {
+      const wordItem = controller._wordlistC.getWordListItem(item.languageCode, item.targetWord, true)
+      if (item.definition) wordItem.shortMeaning = item.definition
+      const textSelector = createWordlistTextSelector(item.targetWord, item.languageCode)
+      if (textSelector && controller.api.lexis && typeof controller.api.lexis.lookupForWordlist === 'function') {
+        await controller.api.lexis.lookupForWordlist(textSelector)
+      }
+    }
+    rebuild()
+    return true
+  }
+
+  function createWordlistTextSelector (text, langCode) {
+    const langDetails = controller.constructor.getLanguageName(langCode)
+    const languageID = langDetails && langDetails.id
+    if (!languageID) return null
+    return {
+      text,
+      languageID,
+      data: {},
+      location: '',
+      get normalizedText () { return this.text },
+      get languageCode () { return langCode },
+      isEmpty () { return !this.text }
+    }
   }
 
   function selectWord (langCode, targetWord) {
@@ -145,5 +194,5 @@ export function useWordList () {
     unwatchers.forEach(u => { try { u() } catch { /* swallow */ } })
   })
 
-  return { groups, contextData, loading, hasData, selectWord }
+  return { groups, contextData, loading, hasData, selectWord, addCurrentLookup, exportList, importFile, rebuild }
 }

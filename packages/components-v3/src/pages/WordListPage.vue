@@ -19,12 +19,13 @@ import Icon from '../primitives/Icon.vue'
 const props = defineProps({
   data: { type: Object, required: true }
 })
-const emit = defineEmits(['selectWord'])
+const emit = defineEmits(['selectWord', 'importFile', 'exportList'])
 
 const view = ref('list')               // 'list' | 'context'
 const filter = ref('')
 const bulkMode = ref(false)
 const selected = ref(new Set())
+const importInput = ref(null)
 
 const groups = computed(() => props.data.list.groups)
 const expandedIds = ref(new Set(groups.value.filter(g => g.expanded).map(g => g.id)))
@@ -37,7 +38,11 @@ function toggleGroup (id) {
 function visibleWords (g) {
   if (!filter.value) return g.words
   const q = filter.value.toLowerCase()
-  return g.words.filter(w => w.form.toLowerCase().includes(q) || w.pos.toLowerCase().includes(q))
+  return g.words.filter(w =>
+    w.form.toLowerCase().includes(q) ||
+    w.pos.toLowerCase().includes(q) ||
+    (w.meaning || '').toLowerCase().includes(q)
+  )
 }
 
 function openContext (word) {
@@ -52,6 +57,16 @@ function toggleSelected (form) {
   const s = new Set(selected.value)
   s.has(form) ? s.delete(form) : s.add(form)
   selected.value = s
+}
+
+function chooseImportFile () {
+  if (importInput.value) importInput.value.click()
+}
+
+function onImportFile (event) {
+  const file = event.target.files && event.target.files[0]
+  if (file) emit('importFile', file)
+  event.target.value = ''
 }
 
 const ctx = computed(() => props.data.context)
@@ -77,8 +92,9 @@ defineExpose({ footerMeta, view, backToList })
                 title="Bulk select" @click="bulkMode = !bulkMode">
           <Icon name="checklist" :size="14" />
         </button>
-        <button class="alph-wl__icon-sq" title="Import"><Icon name="file_upload" :size="14" /></button>
-        <button class="alph-wl__icon-sq" title="Export"><Icon name="file_download" :size="14" /></button>
+        <button class="alph-wl__icon-sq" title="Import" @click="chooseImportFile"><Icon name="file_upload" :size="14" /></button>
+        <button class="alph-wl__icon-sq" title="Export" @click="emit('exportList')"><Icon name="file_download" :size="14" /></button>
+        <input ref="importInput" class="alph-wl__file" type="file" accept=".csv,.tsv,.txt" @change="onImportFile" />
       </div>
 
       <template v-for="g in groups" :key="g.id">
@@ -106,7 +122,7 @@ defineExpose({ footerMeta, view, backToList })
               <Icon v-if="selected.has(w.form)" name="check" :size="10" />
             </span>
             <span class="alph-wl__form lang-classical">{{ w.form }}</span>
-            <span class="alph-wl__pos">{{ w.pos }}</span>
+            <span class="alph-wl__pos">{{ w.meaning || w.pos }}</span>
             <span class="alph-wl__ctx">{{ w.ctx }} ctx</span>
           </div>
         </div>
@@ -169,6 +185,7 @@ defineExpose({ footerMeta, view, backToList })
   color: var(--on-surface);
 }
 .alph-wl__search input::placeholder { color: var(--on-surface-variant); opacity: 0.6; }
+.alph-wl__file { display: none; }
 
 .alph-wl__icon-sq {
   width: 32px; height: 32px;
