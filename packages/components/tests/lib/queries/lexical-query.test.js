@@ -310,7 +310,7 @@ describe('lexical-query.test.js', () => {
     })).toEqual({ allow: ['https://github.com/alpheios-project/xx'] })
   })
 
-  it('11 LexicalQuery - _getLexiconOptionsList parses empty lexicons and returns {}', () => {
+  it('11 LexicalQuery - _getLexiconOptionsList returns Latin short lexicon defaults', () => {
     const location = 'http://example.org'
     const languageCode = 'lat'
     const languageOptions = new Options(LanguageOptionDefaults, LocalStorageArea)
@@ -321,7 +321,7 @@ describe('lexical-query.test.js', () => {
       location,
       siteOptions: [],
       resourceOptions: languageOptions
-    })).toEqual({})
+    })).toEqual({ allow: ['empty'] })
   })
 
   it.skip('12 LexicalQuery - calls tbAdapter if treebank data is present in selector', async () => {

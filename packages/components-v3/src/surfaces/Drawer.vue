@@ -191,7 +191,7 @@ onBeforeUnmount(() => {
           </span>
         </div>
         <div class="alph-drawer__topbar-actions">
-          <Button variant="icon" aria-label="Collapse to toolbar" @click="emit('collapse')">
+          <Button variant="icon" aria-label="Collapse panel" @click="emit('collapse')">
             <Icon name="close_fullscreen" :size="16" />
           </Button>
           <Button variant="icon" aria-label="More" @click="emit('more')">

@@ -416,7 +416,7 @@ export default class Lexis extends Module {
     if (!wordUsageExamples) { wordUsageExamples = this._appApi.getWordUsageExamplesQueryParams(textSelector) }
 
     if (source !== LexicalQuery.sources.WORDLIST) {
-      this._appApi.newLexicalRequest(textSelector.normalizedText, textSelector.languageID, textSelector.data, source)
+      this._appApi.newLexicalRequest(textSelector.normalizedText, textSelector.languageID, textSelector.languageCode, textSelector.data, source)
     }
 
     let treebankWordIDs = []

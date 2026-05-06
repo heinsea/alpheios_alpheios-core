@@ -9,17 +9,15 @@
  * Sections (top to bottom):
  *   1. Word headline (lemma + lang chip)
  *   2. POS tag row (with optional "recognized" green tag)
- *   3. Morphology h-section + per-lemma elevated cards
- *   4. Short definitions h-section + numbered list
- *   5. Principal parts data card
- *   6. Providers list
+ *   3. Definitions h-section + numbered list
+ *   4. Principal parts data card
+ *   5. Providers list
  *
  * "Visual references" / bento grid is intentionally omitted (DESIGN §10
  * marks bento images as decorative, out of scope for the v3 functional UI).
  */
 
-import { ref, computed } from 'vue'
-import Button from '../primitives/Button.vue'
+import { ref, computed, watch } from 'vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
 import { definitionSenseItems } from './lookup-definitions.js'
@@ -29,13 +27,27 @@ const props = defineProps({
   data: { type: Object, required: true }
 })
 
-const morphExpanded = ref(props.data.morph?.map(m => !!m.expanded) ?? [])
-function toggleMorph (i) { morphExpanded.value[i] = !morphExpanded.value[i] }
-const showShortDefs = ref(true)
-function toggleShortDefs () { showShortDefs.value = !showShortDefs.value }
+const definitionMode = ref('short')
+function setDefinitionMode (mode) { definitionMode.value = mode }
+watch(
+  () => `${props.data.lemma || ''}|${(props.data.shortDefinitions || []).length}|${(props.data.fullDefinitions || []).length}`,
+  () => { definitionMode.value = 'short' }
+)
 
-const recognizedPos = computed(() => props.data.recognized)
-const definitionSenses = computed(() => definitionSenseItems(props.data.definitions))
+const recognizedPos = computed(() => props.data.recognized && (props.data.pos || []).length > 0)
+const shortDefinitionSenses = computed(() => definitionSenseItems(props.data.shortDefinitions || props.data.definitions || []))
+const fullDefinitionSenses = computed(() => definitionSenseItems(props.data.fullDefinitions || []))
+const definitionSenses = computed(() => (
+  definitionMode.value === 'full' ? fullDefinitionSenses.value : shortDefinitionSenses.value
+))
+const hasShortDefinitions = computed(() => shortDefinitionSenses.value.length > 0)
+const hasFullDefinitions = computed(() => fullDefinitionSenses.value.length > 0)
+const definitionTitle = computed(() => definitionMode.value === 'full' ? 'Full definitions' : 'Short definitions')
+const emptyDefinitionText = computed(() => (
+  definitionMode.value === 'full'
+    ? 'No full definition is available for this lookup.'
+    : 'No short definition is available for this lookup.'
+))
 </script>
 
 <template>
@@ -60,45 +72,33 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
 
     <hr class="alph-lookup__divider" />
 
-    <!-- ─── Morphology ─── -->
+    <!-- ─── Definitions ─── -->
     <header class="alph-lookup__h-section">
-      <span>Morphology</span>
-      <Button variant="icon" aria-label="Expand all">
-        <Icon name="unfold_more" :size="14" />
-      </Button>
+      <span>{{ definitionTitle }}</span>
+      <div class="alph-lookup__definition-toggle" role="group" aria-label="Definition detail">
+        <button
+          type="button"
+          class="alph-lookup__definition-toggle-btn"
+          :class="{ 'alph-lookup__definition-toggle-btn--active': definitionMode === 'short' }"
+          :aria-pressed="definitionMode === 'short'"
+          :disabled="!hasShortDefinitions"
+          @click="setDefinitionMode('short')"
+        >
+          Short
+        </button>
+        <button
+          type="button"
+          class="alph-lookup__definition-toggle-btn"
+          :class="{ 'alph-lookup__definition-toggle-btn--active': definitionMode === 'full' }"
+          :aria-pressed="definitionMode === 'full'"
+          :disabled="!hasFullDefinitions"
+          @click="setDefinitionMode('full')"
+        >
+          Full
+        </button>
+      </div>
     </header>
     <div class="alph-lookup__pad">
-      <article
-        v-for="(m, i) in data.morph"
-        :key="m.lemma"
-        class="alph-lookup__morph"
-      >
-        <header class="alph-lookup__morph-head">
-          <div class="alph-lookup__morph-head-l">
-            <strong class="lang-classical">{{ m.lemma }}</strong>
-            <span class="alph-lookup__morph-head-meta">{{ m.meta }}</span>
-          </div>
-          <Button variant="icon" :aria-label="morphExpanded[i] ? 'Collapse' : 'Expand'" @click="toggleMorph(i)">
-            <Icon :name="morphExpanded[i] ? 'expand_less' : 'expand_more'" :size="16" />
-          </Button>
-        </header>
-        <div v-if="morphExpanded[i] && m.rows?.length" class="alph-lookup__morph-rows">
-          <div v-for="row in m.rows" :key="row.label" class="alph-lookup__morph-row">
-            <span class="alph-lookup__morph-label">{{ row.label }}</span>
-            <span class="alph-lookup__morph-value" :class="{ 'lang-classical': row.lang }">{{ row.value }}</span>
-          </div>
-        </div>
-      </article>
-    </div>
-
-    <!-- ─── Short definitions ─── -->
-    <header class="alph-lookup__h-section">
-      <span>Short definitions</span>
-      <Button variant="icon" aria-label="Show full" @click="toggleShortDefs">
-        <Icon name="read_more" :size="14" />
-      </Button>
-    </header>
-    <div v-if="showShortDefs" class="alph-lookup__pad">
       <div class="alph-lookup__defs">
         <article v-for="(def, i) in definitionSenses" :key="i" class="alph-lookup__def">
           <span class="alph-lookup__def-num">{{ def.label }}</span>
@@ -112,6 +112,7 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
                 :class="{
                   'alph-lookup__dict-block--major': block.kind === 'major',
                   'alph-lookup__dict-block--sub': block.kind === 'sub',
+                  'alph-lookup__dict-block--nested': block.depth > 0,
                   'alph-lookup__dict-source': block.kind === 'source'
                 }"
               >
@@ -125,6 +126,9 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
             <div v-else class="alph-lookup__def-text" v-html="def.html" />
           </div>
         </article>
+        <p v-if="!definitionSenses.length" class="alph-lookup__def-empty">
+          {{ emptyDefinitionText }}
+        </p>
       </div>
     </div>
 
@@ -191,29 +195,41 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
   color: var(--on-surface-variant);
 }
 .alph-lookup__h-section :deep(.alph-btn--icon) { width: 24px; height: 24px; }
+.alph-lookup__definition-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-container-lowest);
+}
+.alph-lookup__definition-toggle-btn {
+  height: 24px;
+  min-width: 48px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.alph-lookup__definition-toggle-btn:first-child { border-left: 0; }
+.alph-lookup__definition-toggle-btn--active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.alph-lookup__definition-toggle-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
 
 .alph-lookup__pad { padding: 0 12px; }
 
-/* morph cards */
-.alph-lookup__morph {
-  background: var(--surface-container-lowest);
-  border: 1px solid var(--outline-variant);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-.alph-lookup__morph + .alph-lookup__morph { margin-top: 6px; }
-
-.alph-lookup__morph-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--surface-container-low);
-}
-.alph-lookup__morph-head-l { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.alph-lookup__morph-head-l strong { font-size: 13px; font-weight: 600; color: var(--on-surface); }
-.alph-lookup__morph-head-meta { color: var(--on-surface-variant); font-size: 11px; }
-.alph-lookup__morph-head :deep(.alph-btn--icon) { width: 24px; height: 24px; }
-
-.alph-lookup__morph-rows { padding: 4px 12px 8px; }
 .alph-lookup__morph-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 6px 0;
@@ -247,6 +263,16 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
   background: var(--surface-container-lowest);
 }
 .alph-lookup__def + .alph-lookup__def { margin-top: 7px; }
+.alph-lookup__def-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 18px;
+}
 .alph-lookup__def-num {
   display: inline-flex;
   align-items: center;
@@ -305,8 +331,12 @@ const definitionSenses = computed(() => definitionSenseItems(props.data.definiti
   border-radius: var(--radius-md);
 }
 .alph-lookup__dict-block--sub {
-  padding: 2px 0 2px 12px;
+  margin-left: 16px;
+  padding: 6px 0 6px 14px;
   border-left-color: var(--outline-variant);
+}
+.alph-lookup__dict-block--nested:not(.alph-lookup__dict-block--sub) {
+  margin-left: 16px;
 }
 .alph-lookup__dict-heading {
   display: block;

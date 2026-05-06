@@ -13,8 +13,12 @@ defineProps({
   /** Override icon (default: menu_book — Alpheios's classical-text glyph). */
   icon: { type: String, default: 'menu_book' }
 })
+const emit = defineEmits(['open'])
 
-function open () { uiStore.setSurface('drawer') }
+function open () {
+  emit('open')
+  uiStore.setSurface('drawer')
+}
 </script>
 
 <template>

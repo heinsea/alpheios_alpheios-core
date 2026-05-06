@@ -23,6 +23,7 @@
 
 import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
+import { projectDefinitionFields } from '../lib/lookup-data.js'
 
 export function useLookup () {
   const controller = useAppController()
@@ -99,16 +100,11 @@ export function useLookup () {
      * `quamquam`, are most useful only after full lexicon data arrives. v2
      * renders those from `meaning.fullDefs`; v3 must not treat them as empty.
      */
-    let definitions = []
-    if (s.shortDefUpdateTime > 0 || s.fullDefUpdateTime > 0) {
-      definitions = lexemes.flatMap(lex => {
-        const meaning = lex && lex.meaning
-        if (!meaning) return []
-        const shortDefs = Array.isArray(meaning.shortDefs) ? meaning.shortDefs : []
-        const fullDefs = Array.isArray(meaning.fullDefs) ? meaning.fullDefs : []
-        return [...shortDefs, ...fullDefs].map(d => d && d.text ? d.text : '').filter(Boolean)
-      })
-    }
+    const { shortDefinitions, fullDefinitions, definitions } = projectDefinitionFields(lexemes, {
+      noDefinitionsText: controller.api.l10n && typeof controller.api.l10n.getMsg === 'function'
+        ? controller.api.l10n.getMsg('TEXT_NOTICE_NO_DEFS_FOUND')
+        : 'No definitions found'
+    })
 
     /* ── POS features ── */
     const posList = []
@@ -202,6 +198,8 @@ export function useLookup () {
       recognized: lexemes.length > 0,
       pos: posList,
       morph,
+      shortDefinitions,
+      fullDefinitions,
       definitions,
       citation: null,
       principalParts,

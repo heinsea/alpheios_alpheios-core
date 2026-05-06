@@ -4,14 +4,13 @@
  *
  * No dedicated mockup — this page is the "expanded" sibling of the
  * morphology section embedded in LookupPage. It displays every morph
- * card fully expanded, plus principal parts and a per-form summary
+ * card as an expandable reading, plus principal parts and a per-form summary
  * matrix when available.
  *
  * Stage 4 wires `useLookup()` and feeds in disambiguated morph candidates.
  */
 
-import { computed } from 'vue'
-import Button from '../primitives/Button.vue'
+import { computed, ref, watch } from 'vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
 
@@ -19,10 +18,29 @@ const props = defineProps({
   data: { type: Object, required: true }
 })
 
-/* Always-expanded morph rows for the full view. */
 const morphCards = computed(() =>
-  props.data.morph?.map(m => ({ ...m, expanded: true })) ?? []
+  props.data.morph?.map(m => ({ ...m, expanded: false })) ?? []
 )
+const expandedIds = ref(new Set())
+
+watch(
+  () => `${props.data.lemma || ''}|${morphCards.value.length}`,
+  () => { expandedIds.value = new Set() }
+)
+
+function toggleReading (index) {
+  const next = new Set(expandedIds.value)
+  if (next.has(index)) {
+    next.delete(index)
+  } else {
+    next.add(index)
+  }
+  expandedIds.value = next
+}
+
+function isExpanded (index) {
+  return expandedIds.value.has(index)
+}
 </script>
 
 <template>
@@ -42,20 +60,26 @@ const morphCards = computed(() =>
     <header class="alph-morph__h-section"><span>Readings · {{ morphCards.length }}</span></header>
 
     <article v-for="(m, i) in morphCards" :key="i" class="alph-morph__card">
-      <header class="alph-morph__card-head">
+      <button
+        type="button"
+        class="alph-morph__card-head"
+        :aria-expanded="isExpanded(i)"
+        @click="toggleReading(i)"
+      >
         <div class="alph-morph__card-head-l">
+          <Icon :name="isExpanded(i) ? 'expand_more' : 'chevron_right'" :size="16" />
           <strong class="lang-classical">{{ m.lemma }}</strong>
           <span class="alph-morph__card-meta">{{ m.meta }}</span>
         </div>
         <Chip v-if="i === 0" variant="tertiary">primary</Chip>
-      </header>
-      <div v-if="m.rows?.length" class="alph-morph__rows">
+      </button>
+      <div v-if="isExpanded(i) && m.rows?.length" class="alph-morph__rows">
         <div v-for="row in m.rows" :key="row.label" class="alph-morph__row">
           <span class="alph-morph__label">{{ row.label }}</span>
           <span class="alph-morph__value" :class="{ 'lang-classical': row.lang }">{{ row.value }}</span>
         </div>
       </div>
-      <p v-else class="alph-morph__empty">
+      <p v-else-if="isExpanded(i)" class="alph-morph__empty">
         No detailed analysis cached. Run a fresh lookup to populate.
       </p>
     </article>
@@ -119,12 +143,25 @@ const morphCards = computed(() =>
 
 .alph-morph__card-head {
   display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
   padding: 8px 12px;
+  border: 0;
   background: var(--surface-container-low);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   gap: 8px;
 }
+.alph-morph__card-head:hover {
+  background: var(--surface-container);
+}
+.alph-morph__card-head:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
 .alph-morph__card-head-l {
-  display: flex; align-items: baseline; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   min-width: 0;
 }
 .alph-morph__card-head-l strong { font-size: 13px; font-weight: 600; color: var(--on-surface); }

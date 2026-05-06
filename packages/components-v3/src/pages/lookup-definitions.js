@@ -66,20 +66,20 @@ function splitDictionaryBlocks (html) {
 
 function formatDictionaryBlock (block) {
   if (block.startsWith('From A Latin Dictionary')) {
-    return { kind: 'source', heading: '', html: block }
+    return { kind: 'source', depth: 0, heading: '', html: block }
   }
 
   if (/^Hence,?/.test(block)) {
-    return { kind: 'major', ...decorateDictionaryInline(block) }
+    return { kind: 'major', depth: 0, ...decorateDictionaryInline(block) }
   }
 
   if (/^(?:I|II|III|IV|V|VI)\.\s+/.test(block) || /^[A-Z]\.\s+/.test(block)) {
-    return { kind: 'major', ...decorateDictionaryInline(block) }
+    return { kind: 'major', depth: 0, ...decorateDictionaryInline(block) }
   }
   if (/^\([a-zα-ω]\)\.?\s+/.test(block) || /^\d+\.\s+/.test(block) || /^Pass\.:/.test(block)) {
-    return { kind: 'sub', ...decorateDictionaryInline(block) }
+    return { kind: 'sub', depth: 1, ...decorateDictionaryInline(block) }
   }
-  return { kind: 'plain', heading: '', html: decorateQuotes(block) }
+  return { kind: 'plain', depth: 1, heading: '', html: decorateQuotes(block) }
 }
 
 function decorateDictionaryInline (html) {

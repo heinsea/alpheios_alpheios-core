@@ -184,6 +184,8 @@ function emptyShape (lemma, lang, definitionLine) {
     recognized: false,
     pos: [],
     morph: [],
+    shortDefinitions: definitionLine ? [definitionLine] : [],
+    fullDefinitions: [],
     definitions: definitionLine ? [definitionLine] : [],
     citation: null,
     principalParts: [],
@@ -433,6 +435,7 @@ const langLabel = computed(() => {
 })
 
 const showSearchSlot = computed(() => page.value === 'lookup' || page.value === 'morph')
+const drawerCollapseTarget = ref('toolbar')
 
 /* ───── Popup state ─────
  * URL override (?state=loading) drives the demo Stage 2 path. When a real
@@ -447,8 +450,14 @@ const popupState = computed(() => {
 
 /* ───── Handlers ───── */
 function closeAll () { uiStore.setSurface('hidden') }
-function collapseToToolbar () { uiStore.setSurface('toolbar') }
-function expandToDrawer () { uiStore.setSurface('drawer') }
+function collapseDrawer () { uiStore.setSurface(drawerCollapseTarget.value) }
+function expandToDrawer () {
+  drawerCollapseTarget.value = uiStore.state.surface === 'popup' ? 'popup' : 'toolbar'
+  uiStore.setSurface('drawer')
+}
+function openDrawerFromToolbar () {
+  drawerCollapseTarget.value = 'toolbar'
+}
 function showAddedToast () {
   uiStore.showToast({
     kind: 'success',
@@ -530,7 +539,7 @@ const authFooterMeta = computed(() =>
       v-if="showDrawer"
       :lang="langLabel"
       @close="closeAll"
-      @collapse="collapseToToolbar"
+      @collapse="collapseDrawer"
     >
       <!-- Search slot — only on lookup / morph pages -->
       <template v-if="showSearchSlot" #search>
@@ -642,7 +651,7 @@ const authFooterMeta = computed(() =>
     </Drawer>
 
     <!-- ─── Toolbar (FAB) ─── -->
-    <Toolbar v-if="showToolbar" />
+    <Toolbar v-if="showToolbar" @open="openDrawerFromToolbar" />
 
     <!-- ─── Toast — always rendered (visibility driven by store) ─── -->
     <Toast />

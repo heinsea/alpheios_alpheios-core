@@ -11,9 +11,10 @@ export default class TextSelector {
   /**
    * @param {symbol} languageID - A language ID of a selector
    */
-  constructor (languageID) {
+  constructor (languageID, languageCode = null) {
     this.text = '' // Calculated?
     this.languageID = languageID || null
+    this.languageCode = languageCode || (this.languageID ? LanguageModelFactory.getLanguageCodeFromId(this.languageID) : '')
     this.model = undefined
     this.location = ''
 
@@ -57,22 +58,18 @@ export default class TextSelector {
   // languageCodes
 
   static readObject (jsonObject) {
-    let textSelector = new TextSelector(LanguageModelFactory.getLanguageIdFromCode(jsonObject.languageCode)) // eslint-disable-line prefer-const
+    let textSelector = new TextSelector(LanguageModelFactory.getLanguageIdFromCode(jsonObject.languageCode), jsonObject.languageCode) // eslint-disable-line prefer-const
     textSelector.text = jsonObject.text
     // textSelector.language = TextSelector.getLanguage(textSelector.languageCode)
     return textSelector
   }
 
-  static createObjectFromText (text, languageID) {
-    let textSelector = new TextSelector(languageID) // eslint-disable-line prefer-const
+  static createObjectFromText (text, languageID, languageCode = null) {
+    let textSelector = new TextSelector(languageID, languageCode) // eslint-disable-line prefer-const
     textSelector.text = text
 
     textSelector.model = LanguageModelFactory.getLanguageModel(textSelector.languageID)
     return textSelector
-  }
-
-  get languageCode () {
-    return (this.languageID) ? LanguageModelFactory.getLanguageCodeFromId(this.languageID) : ''
   }
 
   isEmpty () {
@@ -85,5 +82,19 @@ export default class TextSelector {
 
   createTextQuoteSelector (prefix, suffix) {
     this.textQuoteSelector = new TextQuoteSelector(this.languageCode, this.normalizedText, prefix, suffix, window.location.href)
+  }
+
+  updateLanguage (languageID, languageCode = null) {
+    this.languageID = languageID
+    this.languageCode = languageCode || (this.languageID ? LanguageModelFactory.getLanguageCodeFromId(this.languageID) : '')
+    this.model = LanguageModelFactory.getLanguageModel(this.languageID)
+
+    if (this.textQuoteSelector) {
+      if (typeof this.textQuoteSelector.updateLanguage === 'function') {
+        this.textQuoteSelector.updateLanguage(this.languageCode)
+      } else {
+        this.textQuoteSelector.languageCode = this.languageCode
+      }
+    }
   }
 }

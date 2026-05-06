@@ -15,7 +15,7 @@
  * The arrow is a 12 × 12 rotated ::before — colour matches glass background.
  */
 
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Button from '../primitives/Button.vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
@@ -60,10 +60,33 @@ const noResultData = computed(() => {
 })
 const cachedPos = computed(() => props.emptyStates.error?.cachedPos || [])
 const cachedDefs = computed(() => props.emptyStates.error?.cachedDefs || [])
-const popupDefinitions = computed(() => {
-  const definitions = props.state === 'error' ? cachedDefs.value : props.data.definitions || []
-  return definitionSenseItems(definitions).slice(0, 3)
+const shortDefinitionItems = computed(() => {
+  if (props.state === 'error') return definitionSenseItems(cachedDefs.value)
+  const defs = props.data.shortDefinitions || []
+  return definitionSenseItems(defs)
 })
+const fullDefinitionItems = computed(() => {
+  if (props.state === 'error') return definitionSenseItems(cachedDefs.value)
+  const defs = props.data.fullDefinitions || []
+  return definitionSenseItems(defs)
+})
+const definitionMode = ref('short')
+
+watch(
+  () => `${props.state}|${targetWord.value}|${(props.data.shortDefinitions || []).length}|${(props.data.fullDefinitions || []).length}|${(props.data.definitions || []).length}`,
+  () => { definitionMode.value = 'short' }
+)
+
+const visibleDefinitions = computed(() => (
+  definitionMode.value === 'full' ? fullDefinitionItems.value : shortDefinitionItems.value
+))
+const hasShortDefinitions = computed(() => shortDefinitionItems.value.length > 0)
+const hasFullDefinitions = computed(() => fullDefinitionItems.value.length > 0)
+const emptyDefinitionText = computed(() => (
+  definitionMode.value === 'full'
+    ? 'No full definition available.'
+    : 'No short definition available.'
+))
 
 const showFullBody = computed(() => props.state === 'default' || props.state === 'error')
 </script>
@@ -130,7 +153,29 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
             </div>
           </template>
           <template v-else>
-            <div v-for="(def, i) in popupDefinitions" :key="i" class="alph-popup__def">
+            <div class="alph-popup__definition-toggle" role="group" aria-label="Definition detail">
+              <button
+                type="button"
+                class="alph-popup__definition-toggle-btn"
+                :class="{ 'alph-popup__definition-toggle-btn--active': definitionMode === 'short' }"
+                :aria-pressed="definitionMode === 'short'"
+                :disabled="!hasShortDefinitions"
+                @click="definitionMode = 'short'"
+              >
+                Short
+              </button>
+              <button
+                type="button"
+                class="alph-popup__definition-toggle-btn"
+                :class="{ 'alph-popup__definition-toggle-btn--active': definitionMode === 'full' }"
+                :aria-pressed="definitionMode === 'full'"
+                :disabled="!hasFullDefinitions"
+                @click="definitionMode = 'full'"
+              >
+                Full
+              </button>
+            </div>
+            <div v-for="(def, i) in visibleDefinitions" :key="i" class="alph-popup__def">
               <span class="alph-popup__def-num">{{ def.label }}</span>
               <div v-if="def.blocks" class="alph-popup__def-text alph-popup__def-rich">
                 <p
@@ -140,6 +185,7 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
                   :class="{
                     'alph-popup__dict-block--major': block.kind === 'major',
                     'alph-popup__dict-block--sub': block.kind === 'sub',
+                    'alph-popup__dict-block--nested': block.depth > 0,
                     'alph-popup__dict-source': block.kind === 'source'
                   }"
                 >
@@ -152,6 +198,9 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
               </div>
               <span v-else class="alph-popup__def-text" v-html="def.html" />
             </div>
+            <p v-if="!visibleDefinitions.length" class="alph-popup__def-empty">
+              {{ emptyDefinitionText }}
+            </p>
           </template>
         </div>
 
@@ -302,6 +351,39 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 .alph-popup__pos-text--muted { opacity: 0.6; }
 
 .alph-popup__defs { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.alph-popup__definition-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-container-lowest);
+  margin-bottom: 4px;
+}
+.alph-popup__definition-toggle-btn {
+  height: 24px;
+  min-width: 52px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.alph-popup__definition-toggle-btn:first-child { border-left: 0; }
+.alph-popup__definition-toggle-btn--active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.alph-popup__definition-toggle-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
 .alph-popup__def {
   display: flex; gap: 8px;
   padding: 6px 0;
@@ -337,8 +419,12 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   border-radius: var(--radius-md);
 }
 .alph-popup__dict-block--sub {
-  padding: 2px 0 2px 12px;
+  margin-left: 14px;
+  padding: 6px 0 6px 12px;
   border-left-color: var(--outline-variant);
+}
+.alph-popup__dict-block--nested:not(.alph-popup__dict-block--sub) {
+  margin-left: 14px;
 }
 .alph-popup__dict-heading {
   display: block;
@@ -367,6 +453,16 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   font-size: 10px;
   line-height: 15px;
   font-weight: 600;
+}
+.alph-popup__def-empty {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
 }
 .alph-popup__skeleton {
   display: inline-block;
