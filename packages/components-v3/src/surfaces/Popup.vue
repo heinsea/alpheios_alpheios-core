@@ -182,12 +182,14 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
                   v-for="(block, blockIndex) in def.blocks"
                   :key="blockIndex"
                   class="alph-popup__dict-block"
-                  :class="{
-                    'alph-popup__dict-block--major': block.kind === 'major',
-                    'alph-popup__dict-block--sub': block.kind === 'sub',
-                    'alph-popup__dict-block--nested': block.depth > 0,
-                    'alph-popup__dict-source': block.kind === 'source'
-                  }"
+                  :class="[
+                    {
+                      'alph-popup__dict-block--major': block.kind === 'major',
+                      'alph-popup__dict-block--sub': block.kind === 'sub',
+                      'alph-popup__dict-source': block.kind === 'source'
+                    },
+                    `alph-popup__dict-block--depth-${block.depth || 0}`
+                  ]"
                 >
                   <span
                     v-if="block.heading"
@@ -197,6 +199,9 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
                 </p>
               </div>
               <span v-else class="alph-popup__def-text" v-html="def.html" />
+              <span v-if="definitionMode === 'short' && def.morphology" class="alph-popup__def-morph">
+                {{ def.morphology }}
+              </span>
             </div>
             <p v-if="!visibleDefinitions.length" class="alph-popup__def-empty">
               {{ emptyDefinitionText }}
@@ -400,6 +405,13 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   font-size: 12px; line-height: 16px;
   color: var(--on-surface);
 }
+.alph-popup__def-morph {
+  display: block;
+  margin-top: 4px;
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  line-height: 14px;
+}
 .alph-popup__def-rich {
   display: flex;
   flex-direction: column;
@@ -419,12 +431,14 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   border-radius: var(--radius-md);
 }
 .alph-popup__dict-block--sub {
-  margin-left: 14px;
   padding: 6px 0 6px 12px;
   border-left-color: var(--outline-variant);
 }
-.alph-popup__dict-block--nested:not(.alph-popup__dict-block--sub) {
+.alph-popup__dict-block--depth-1 {
   margin-left: 14px;
+}
+.alph-popup__dict-block--depth-2 {
+  margin-left: 28px;
 }
 .alph-popup__dict-heading {
   display: block;

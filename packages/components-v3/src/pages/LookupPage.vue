@@ -103,27 +103,49 @@ const emptyDefinitionText = computed(() => (
         <article v-for="(def, i) in definitionSenses" :key="i" class="alph-lookup__def">
           <span class="alph-lookup__def-num">{{ def.label }}</span>
           <div class="alph-lookup__def-body">
-            <span class="alph-lookup__def-label">Sense</span>
+            <!-- ── Entry header: headword : (frequency) ── -->
+            <div v-if="def.headword || def.frequency" class="alph-lookup__def-entry-head">
+              <span class="alph-lookup__def-headword lang-classical">{{ def.headword }}</span><span
+                v-if="def.headword" class="alph-lookup__def-entry-sep"> :</span><span
+                v-if="def.frequency" class="alph-lookup__def-freq"> ({{ def.frequency }})</span>
+            </div>
+            <!-- ── Morphology: e.g. "neuter noun; 2nd declension" ── -->
+            <p v-if="def.morphology" class="alph-lookup__def-morph">{{ def.morphology }}</p>
+            <!-- ── Definition text ── -->
             <div v-if="def.blocks" class="alph-lookup__def-text alph-lookup__def-rich">
               <p
                 v-for="(block, blockIndex) in def.blocks"
                 :key="blockIndex"
                 class="alph-lookup__dict-block"
-                :class="{
-                  'alph-lookup__dict-block--major': block.kind === 'major',
-                  'alph-lookup__dict-block--sub': block.kind === 'sub',
-                  'alph-lookup__dict-block--nested': block.depth > 0,
-                  'alph-lookup__dict-source': block.kind === 'source'
-                }"
+                :class="[
+                  {
+                    'alph-lookup__dict-block--roman': block.kind === 'roman',
+                    'alph-lookup__dict-block--major': block.kind === 'major',
+                    'alph-lookup__dict-block--sub': block.kind === 'sub',
+                    'alph-lookup__dict-source': block.kind === 'source'
+                  },
+                  `alph-lookup__dict-block--depth-${block.depth || 0}`
+                ]"
               >
                 <span
                   v-if="block.heading"
-                  :class="block.kind === 'sub' ? 'alph-lookup__dict-subheading' : 'alph-lookup__dict-heading'"
+                  :class="(block.kind === 'roman' || block.kind === 'major') ? 'alph-lookup__dict-heading' : 'alph-lookup__dict-subheading'"
                 >{{ block.heading }}</span>
                 <span v-if="block.html" v-html="block.html" />
               </p>
             </div>
-            <div v-else class="alph-lookup__def-text" v-html="def.html" />
+            <div v-else class="alph-lookup__def-text">
+              <span v-if="def.lemma" class="alph-lookup__def-lemma-pfx lang-classical">{{ def.lemma }}: </span><strong
+                v-if="def.html" class="alph-lookup__def-bold" v-html="def.html" />
+            </div>
+            <!-- ── Inflection: form line + number/case rows ── -->
+            <div v-if="def.form || (def.inflections && def.inflections.length)" class="alph-lookup__def-inflect">
+              <span v-if="def.form" class="alph-lookup__def-form lang-classical">{{ def.form }}</span>
+              <div v-for="(row, ri) in def.inflections" :key="ri" class="alph-lookup__def-infl-row">
+                <span v-if="row.label" class="alph-lookup__def-infl-cat">{{ row.label }}.</span>
+                <span v-for="(v, vi) in row.values" :key="vi" class="alph-lookup__def-infl-val">{{ v }}.</span>
+              </div>
+            </div>
           </div>
         </article>
         <p v-if="!definitionSenses.length" class="alph-lookup__def-empty">
@@ -289,18 +311,63 @@ const emptyDefinitionText = computed(() => (
   font-variant-numeric: tabular-nums;
 }
 .alph-lookup__def-body { min-width: 0; }
-.alph-lookup__def-label {
-  display: inline-block;
+/* entry header: headword : (freq) [provider] */
+.alph-lookup__def-entry-head {
   margin-bottom: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--on-surface);
+}
+.alph-lookup__def-headword {
+  font-weight: 600;
+}
+.alph-lookup__def-entry-sep,
+.alph-lookup__def-freq {
   color: var(--on-surface-variant);
+}
+.alph-lookup__def-prov {
+  color: var(--on-surface-variant);
+  font-size: 10px;
 }
 .alph-lookup__def-text {
   font-size: 12px; line-height: 18px;
   color: var(--on-surface);
+}
+.alph-lookup__def-morph {
+  margin: 2px 0 4px;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  line-height: 16px;
+}
+/* lemma prefix + bold short def */
+.alph-lookup__def-lemma-pfx {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+.alph-lookup__def-bold {
+  font-weight: 700;
+  color: var(--on-surface);
+}
+/* inflection block below definition */
+.alph-lookup__def-inflect {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.alph-lookup__def-form {
+  font-size: 11px;
+  color: var(--on-surface);
+  letter-spacing: 0.02em;
+}
+.alph-lookup__def-infl-row {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+.alph-lookup__def-infl-cat {
+  font-style: italic;
 }
 .alph-lookup__def-text :deep(em) { font-style: italic; color: var(--on-surface-variant); }
 .alph-lookup__def-text :deep(br) { content: ""; display: block; margin-top: 6px; }
@@ -323,21 +390,32 @@ const emptyDefinitionText = computed(() => (
   padding: 0 0 0 10px;
   border-left: 2px solid var(--divider);
 }
-.alph-lookup__dict-block--major {
-  margin-top: 4px;
-  padding: 10px 10px 10px 12px;
-  border-left-color: var(--on-surface);
+/* Roman numeral blocks — top-level major sections (I, II, III) */
+.alph-lookup__dict-block--roman {
+  margin-top: 6px;
+  padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--primary, #5b4fcf);
   background: var(--surface-container-low);
   border-radius: var(--radius-md);
 }
+/* Capital-letter sub-sections (A, B, C) */
+.alph-lookup__dict-block--major {
+  margin-top: 4px;
+  padding: 6px 10px 6px 10px;
+  border-left: 2px solid var(--outline);
+  background: transparent;
+  border-radius: var(--radius-sm);
+}
 .alph-lookup__dict-block--sub {
-  margin-left: 16px;
-  padding: 6px 0 6px 14px;
+  padding: 4px 0 4px 12px;
   border-left-color: var(--outline-variant);
 }
-.alph-lookup__dict-block--nested:not(.alph-lookup__dict-block--sub) {
-  margin-left: 16px;
-}
+/* Per-depth left indentation */
+.alph-lookup__dict-block--depth-0 { margin-left: 0; }
+.alph-lookup__dict-block--depth-1 { margin-left: 12px; }
+.alph-lookup__dict-block--depth-2 { margin-left: 24px; }
+.alph-lookup__dict-block--depth-3 { margin-left: 36px; }
+.alph-lookup__dict-block--depth-4 { margin-left: 48px; }
 .alph-lookup__dict-heading {
   display: block;
   margin-bottom: 5px;
