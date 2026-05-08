@@ -84,8 +84,13 @@
         >
           <morph
               :id="morphComponentID"
+              :showDefinitions="false"
           />
         </div>
+
+        <definitions-panel
+            class="alpheios-popup__definitions-panel"
+            v-if="targetWordHasData" />
 
         <div
             class="alpheios-popup__providers"
@@ -111,6 +116,7 @@
 </template>
 <script>
 import Morph from './morph.vue'
+import DefinitionsPanel from './morph-parts/definitions-panel.vue'
 import NotificationArea from './notification-area.vue'
 import interact from 'interactjs'
 import { Logger } from 'alpheios-data-models'
@@ -136,6 +142,7 @@ export default {
   mixins: [DependencyCheck],
   components: {
     morph: Morph,
+    definitionsPanel: DefinitionsPanel,
     logoIcon: LogoIcon,
     closeIcon: CloseIcon,
     alphTooltip: Tooltip,
@@ -746,6 +753,10 @@ export default {
 
   .alpheios-popup__definitions--placeholder {
     padding: textsize(10px) 0;
+  }
+
+  .alpheios-popup__definitions-panel {
+    margin-top: textsize(10px);
   }
 
   .alpheios-popup__providers-item {

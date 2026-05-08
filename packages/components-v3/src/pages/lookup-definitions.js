@@ -12,21 +12,29 @@ const PASS_MARKER_RE = /^Pass\.:/
 export function definitionSenseItems (definitions = []) {
   if (!Array.isArray(definitions)) return []
 
+  let defIndex = 0
   return definitions
-    .map(definitionContent)
-    .filter(content => content.html || (content.blocks && content.blocks.length))
-    .map((content, index) => ({
-      label: String(index + 1),
-      headword: content.headword || '',
-      frequency: content.frequency || '',
-      provider: content.provider || '',
-      lemma: content.lemma || '',
-      form: content.form || '',
-      inflections: content.inflections || [],
-      html: content.html,
-      blocks: content.blocks,
-      morphology: content.morphology || ''
-    }))
+    .map(definition => {
+      // Pass through group-header sentinels as-is
+      if (definition && definition._isGroupHeader) {
+        return {
+          isHeader: true,
+          headword: definition.headword || '',
+          frequency: definition.frequency || '',
+          morphology: definition.morphology || '',
+          form: definition.form || '',
+          inflections: definition.inflections || []
+        }
+      }
+      const content = definitionContent(definition)
+      if (!content.html && !(content.blocks && content.blocks.length)) return null
+      return {
+        label: String(++defIndex),
+        html: content.html,
+        blocks: content.blocks
+      }
+    })
+    .filter(Boolean)
 }
 
 function definitionContent (definition) {

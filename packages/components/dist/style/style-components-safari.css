@@ -1722,6 +1722,9 @@ a:not([href]):not([tabindex]).alpheios-popup__providers-link:hover {
 .alpheios-popup__definitions--placeholder {
   padding: calc(var(--alpheios-base-text-size) * 0.625) 0 !important;
 }
+.alpheios-popup__definitions-panel {
+  margin-top: calc(var(--alpheios-base-text-size) * 0.625) !important;
+}
 .alpheios-popup__providers-item {
   color: var(--alpheios-desktop-popup-credit-providers-color) !important;
 }

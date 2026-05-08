@@ -4,10 +4,13 @@ export function projectDefinitionFields (lexemes = [], { noDefinitionsText = '' 
     if (!meaning) return []
     const shortDefs = Array.isArray(meaning.shortDefs) ? meaning.shortDefs : []
     const details = lexemeDefinitionDetails(lex)
-    return shortDefs
+    const items = shortDefs
       .map(definitionText)
       .filter(Boolean)
-      .map(definition => ({ html: definition, ...details }))
+      .map(definition => ({ html: definition }))
+    if (items.length === 0) return []
+    // Prepend a group-header sentinel so templates can render meta once per lexeme
+    return [{ _isGroupHeader: true, ...details }, ...items]
   })
   const fullDefinitions = lexemes.flatMap(lex => {
     const meaning = lex && lex.meaning

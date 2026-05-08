@@ -100,45 +100,14 @@ const emptyDefinitionText = computed(() => (
     </header>
     <div class="alph-lookup__pad">
       <div class="alph-lookup__defs">
-        <article v-for="(def, i) in definitionSenses" :key="i" class="alph-lookup__def">
-          <span class="alph-lookup__def-num">{{ def.label }}</span>
-          <div class="alph-lookup__def-body">
-            <!-- ── Entry header: headword : (frequency) ── -->
+        <template v-for="(def, i) in definitionSenses" :key="i">
+          <!-- Lexeme group header -->
+          <div v-if="def.isHeader" class="alph-lookup__def-group-head">
             <div v-if="def.headword || def.frequency" class="alph-lookup__def-entry-head">
               <span class="alph-lookup__def-headword lang-classical">{{ def.headword }}</span><span
-                v-if="def.headword" class="alph-lookup__def-entry-sep"> :</span><span
                 v-if="def.frequency" class="alph-lookup__def-freq"> ({{ def.frequency }})</span>
             </div>
-            <!-- ── Morphology: e.g. "neuter noun; 2nd declension" ── -->
             <p v-if="def.morphology" class="alph-lookup__def-morph">{{ def.morphology }}</p>
-            <!-- ── Definition text ── -->
-            <div v-if="def.blocks" class="alph-lookup__def-text alph-lookup__def-rich">
-              <p
-                v-for="(block, blockIndex) in def.blocks"
-                :key="blockIndex"
-                class="alph-lookup__dict-block"
-                :class="[
-                  {
-                    'alph-lookup__dict-block--roman': block.kind === 'roman',
-                    'alph-lookup__dict-block--major': block.kind === 'major',
-                    'alph-lookup__dict-block--sub': block.kind === 'sub',
-                    'alph-lookup__dict-source': block.kind === 'source'
-                  },
-                  `alph-lookup__dict-block--depth-${block.depth || 0}`
-                ]"
-              >
-                <span
-                  v-if="block.heading"
-                  :class="(block.kind === 'roman' || block.kind === 'major') ? 'alph-lookup__dict-heading' : 'alph-lookup__dict-subheading'"
-                >{{ block.heading }}</span>
-                <span v-if="block.html" v-html="block.html" />
-              </p>
-            </div>
-            <div v-else class="alph-lookup__def-text">
-              <span v-if="def.lemma" class="alph-lookup__def-lemma-pfx lang-classical">{{ def.lemma }}: </span><strong
-                v-if="def.html" class="alph-lookup__def-bold" v-html="def.html" />
-            </div>
-            <!-- ── Inflection: form line + number/case rows ── -->
             <div v-if="def.form || (def.inflections && def.inflections.length)" class="alph-lookup__def-inflect">
               <span v-if="def.form" class="alph-lookup__def-form lang-classical">{{ def.form }}</span>
               <div v-for="(row, ri) in def.inflections" :key="ri" class="alph-lookup__def-infl-row">
@@ -147,7 +116,36 @@ const emptyDefinitionText = computed(() => (
               </div>
             </div>
           </div>
-        </article>
+          <!-- Definition item -->
+          <article v-else class="alph-lookup__def">
+            <span class="alph-lookup__def-num">{{ def.label }}</span>
+            <div class="alph-lookup__def-body">
+              <div v-if="def.blocks" class="alph-lookup__def-text alph-lookup__def-rich">
+                <p
+                  v-for="(block, blockIndex) in def.blocks"
+                  :key="blockIndex"
+                  class="alph-lookup__dict-block"
+                  :class="[
+                    {
+                      'alph-lookup__dict-block--roman': block.kind === 'roman',
+                      'alph-lookup__dict-block--major': block.kind === 'major',
+                      'alph-lookup__dict-block--sub': block.kind === 'sub',
+                      'alph-lookup__dict-source': block.kind === 'source'
+                    },
+                    `alph-lookup__dict-block--depth-${block.depth || 0}`
+                  ]"
+                >
+                  <span
+                    v-if="block.heading"
+                    :class="(block.kind === 'roman' || block.kind === 'major') ? 'alph-lookup__dict-heading' : 'alph-lookup__dict-subheading'"
+                  >{{ block.heading }}</span>
+                  <span v-if="block.html" v-html="block.html" />
+                </p>
+              </div>
+              <div v-else class="alph-lookup__def-text" v-html="def.html" />
+            </div>
+          </article>
+        </template>
         <p v-if="!definitionSenses.length" class="alph-lookup__def-empty">
           {{ emptyDefinitionText }}
         </p>
@@ -272,19 +270,29 @@ const emptyDefinitionText = computed(() => (
   text-align: right;
 }
 
+.alph-lookup__def-group-head {
+  padding: 8px 4px 4px;
+  border-top: 1px solid var(--divider);
+  margin-top: 8px;
+}
+.alph-lookup__def-group-head:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
 /* definitions */
 .alph-lookup__defs { margin: 0; padding: 0; list-style: none; }
 .alph-lookup__def {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
-  gap: 8px;
-  padding: 10px 10px 10px 8px;
-  border: 1px solid var(--outline-variant);
-  border-left: 3px solid var(--on-surface);
-  border-radius: var(--radius-lg);
-  background: var(--surface-container-lowest);
+  gap: 4px;
+  padding: 4px 0;
 }
-.alph-lookup__def + .alph-lookup__def { margin-top: 7px; }
+.alph-lookup__def + .alph-lookup__def {
+  margin-top: 2px;
+  border-top: 1px solid var(--divider);
+  padding-top: 6px;
+}
 .alph-lookup__def-empty {
   margin: 0;
   padding: 10px 12px;
@@ -387,28 +395,21 @@ const emptyDefinitionText = computed(() => (
 }
 .alph-lookup__dict-block {
   margin: 0;
-  padding: 0 0 0 10px;
-  border-left: 2px solid var(--divider);
+  padding: 0;
 }
 /* Roman numeral blocks — top-level major sections (I, II, III) */
 .alph-lookup__dict-block--roman {
   margin-top: 6px;
-  padding: 8px 10px 8px 12px;
-  border-left: 3px solid var(--primary, #5b4fcf);
-  background: var(--surface-container-low);
-  border-radius: var(--radius-md);
+  padding: 4px 0;
+  font-weight: 700;
 }
 /* Capital-letter sub-sections (A, B, C) */
 .alph-lookup__dict-block--major {
   margin-top: 4px;
-  padding: 6px 10px 6px 10px;
-  border-left: 2px solid var(--outline);
-  background: transparent;
-  border-radius: var(--radius-sm);
+  padding: 2px 0;
 }
 .alph-lookup__dict-block--sub {
-  padding: 4px 0 4px 12px;
-  border-left-color: var(--outline-variant);
+  padding: 2px 0;
 }
 /* Per-depth left indentation */
 .alph-lookup__dict-block--depth-0 { margin-left: 0; }

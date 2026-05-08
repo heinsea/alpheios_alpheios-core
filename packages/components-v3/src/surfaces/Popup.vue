@@ -62,7 +62,7 @@ const cachedPos = computed(() => props.emptyStates.error?.cachedPos || [])
 const cachedDefs = computed(() => props.emptyStates.error?.cachedDefs || [])
 const shortDefinitionItems = computed(() => {
   if (props.state === 'error') return definitionSenseItems(cachedDefs.value)
-  const defs = props.data.shortDefinitions || []
+  const defs = props.data.shortDefinitions || props.data.definitions || []
   return definitionSenseItems(defs)
 })
 const fullDefinitionItems = computed(() => {
@@ -175,34 +175,52 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
                 Full
               </button>
             </div>
-            <div v-for="(def, i) in visibleDefinitions" :key="i" class="alph-popup__def">
-              <span class="alph-popup__def-num">{{ def.label }}</span>
-              <div v-if="def.blocks" class="alph-popup__def-text alph-popup__def-rich">
-                <p
-                  v-for="(block, blockIndex) in def.blocks"
-                  :key="blockIndex"
-                  class="alph-popup__dict-block"
-                  :class="[
-                    {
-                      'alph-popup__dict-block--major': block.kind === 'major',
-                      'alph-popup__dict-block--sub': block.kind === 'sub',
-                      'alph-popup__dict-source': block.kind === 'source'
-                    },
-                    `alph-popup__dict-block--depth-${block.depth || 0}`
-                  ]"
-                >
-                  <span
-                    v-if="block.heading"
-                    :class="block.kind === 'sub' ? 'alph-popup__dict-subheading' : 'alph-popup__dict-heading'"
-                  >{{ block.heading }}</span>
-                  <span v-if="block.html" v-html="block.html" />
-                </p>
+            <template v-for="(def, i) in visibleDefinitions" :key="i">
+              <!-- Lexeme group header -->
+              <div v-if="def.isHeader" class="alph-popup__def-group-head">
+                <div v-if="def.headword || def.frequency" class="alph-popup__def-entry-head">
+                  <span class="alph-popup__def-headword lang-classical">{{ def.headword }}</span><span
+                    v-if="def.frequency" class="alph-popup__def-freq"> ({{ def.frequency }})</span>
+                </div>
+                <p v-if="def.morphology" class="alph-popup__def-morph">{{ def.morphology }}</p>
+                <div v-if="def.form || (def.inflections && def.inflections.length)" class="alph-popup__def-inflect">
+                  <span v-if="def.form" class="alph-popup__def-form lang-classical">{{ def.form }}</span>
+                  <div v-for="(row, ri) in def.inflections" :key="ri" class="alph-popup__def-infl-row">
+                    <span v-if="row.label" class="alph-popup__def-infl-cat">{{ row.label }}.</span>
+                    <span v-for="(v, vi) in row.values" :key="vi" class="alph-popup__def-infl-val">{{ v }}.</span>
+                  </div>
+                </div>
               </div>
-              <span v-else class="alph-popup__def-text" v-html="def.html" />
-              <span v-if="definitionMode === 'short' && def.morphology" class="alph-popup__def-morph">
-                {{ def.morphology }}
-              </span>
-            </div>
+              <!-- Definition item -->
+              <article v-else class="alph-popup__def">
+                <span class="alph-popup__def-num">{{ def.label }}</span>
+                <div class="alph-popup__def-body">
+                  <div v-if="def.blocks" class="alph-popup__def-text alph-popup__def-rich">
+                    <p
+                      v-for="(block, blockIndex) in def.blocks"
+                      :key="blockIndex"
+                      class="alph-popup__dict-block"
+                      :class="[
+                        {
+                          'alph-popup__dict-block--roman': block.kind === 'roman',
+                          'alph-popup__dict-block--major': block.kind === 'major',
+                          'alph-popup__dict-block--sub': block.kind === 'sub',
+                          'alph-popup__dict-source': block.kind === 'source'
+                        },
+                        `alph-popup__dict-block--depth-${block.depth || 0}`
+                      ]"
+                    >
+                      <span
+                        v-if="block.heading"
+                        :class="(block.kind === 'roman' || block.kind === 'major') ? 'alph-popup__dict-heading' : 'alph-popup__dict-subheading'"
+                      >{{ block.heading }}</span>
+                      <span v-if="block.html" v-html="block.html" />
+                    </p>
+                  </div>
+                  <div v-else class="alph-popup__def-text" v-html="def.html" />
+                </div>
+              </article>
+            </template>
             <p v-if="!visibleDefinitions.length" class="alph-popup__def-empty">
               {{ emptyDefinitionText }}
             </p>
@@ -355,10 +373,11 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 .alph-popup__pos-text strong { color: var(--on-surface); font-weight: 600; }
 .alph-popup__pos-text--muted { opacity: 0.6; }
 
-.alph-popup__defs { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.alph-popup__defs { display: flex; flex-direction: column; margin-bottom: 12px; }
 .alph-popup__definition-toggle {
   align-self: flex-start;
   display: inline-flex;
+  align-items: center;
   border: 1px solid var(--outline-variant);
   border-radius: var(--radius);
   overflow: hidden;
@@ -367,7 +386,7 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 }
 .alph-popup__definition-toggle-btn {
   height: 24px;
-  min-width: 52px;
+  min-width: 48px;
   padding: 0 8px;
   border: 0;
   border-left: 1px solid var(--outline-variant);
@@ -389,29 +408,101 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   opacity: 0.38;
   cursor: not-allowed;
 }
-.alph-popup__def {
-  display: flex; gap: 8px;
-  padding: 6px 0;
+.alph-popup__def-group-head {
+  padding: 8px 4px 4px;
   border-top: 1px solid var(--divider);
+  margin-top: 8px;
 }
-.alph-popup__def:first-child { border-top: 0; padding-top: 0; }
+.alph-popup__def-group-head:first-child {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.alph-popup__def {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px 0;
+}
+.alph-popup__def + .alph-popup__def {
+  margin-top: 2px;
+  border-top: 1px solid var(--divider);
+  padding-top: 6px;
+}
+.alph-popup__def-body { min-width: 0; }
+/* entry header: headword : (freq) */
+.alph-popup__def-entry-head {
+  margin-bottom: 3px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--on-surface);
+}
+.alph-popup__def-headword { font-weight: 600; }
+.alph-popup__def-entry-sep,
+.alph-popup__def-freq { color: var(--on-surface-variant); }
 .alph-popup__def-num {
-  font-size: 11px; font-weight: 500;
-  color: var(--on-surface-variant);
-  opacity: 0.6;
-  width: 16px; flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .alph-popup__def-text {
-  font-size: 12px; line-height: 16px;
+  font-size: 12px; line-height: 18px;
   color: var(--on-surface);
 }
 .alph-popup__def-morph {
-  display: block;
-  margin-top: 4px;
+  margin: 2px 0 4px;
   color: var(--on-surface-variant);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 11px;
+  line-height: 16px;
 }
+/* lemma prefix + bold short def */
+.alph-popup__def-lemma-pfx {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+.alph-popup__def-bold {
+  font-weight: 700;
+  color: var(--on-surface);
+}
+/* inflection block below definition */
+.alph-popup__def-inflect {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.alph-popup__def-form {
+  font-size: 11px;
+  color: var(--on-surface);
+  letter-spacing: 0.02em;
+}
+.alph-popup__def-infl-row {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+.alph-popup__def-infl-cat { font-style: italic; }
+.alph-popup__def-text :deep(em) { font-style: italic; color: var(--on-surface-variant); }
+.alph-popup__def-text :deep(br) { content: ""; display: block; margin-top: 6px; }
+.alph-popup__def-text :deep(p) { margin: 0 0 6px; }
+.alph-popup__def-text :deep(p:last-child) { margin-bottom: 0; }
+.alph-popup__def-text :deep(ol),
+.alph-popup__def-text :deep(ul) {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.alph-popup__def-text :deep(li + li) { margin-top: 3px; }
 .alph-popup__def-rich {
   display: flex;
   flex-direction: column;
@@ -420,26 +511,28 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 }
 .alph-popup__dict-block {
   margin: 0;
-  padding: 0 0 0 10px;
-  border-left: 2px solid var(--divider);
+  padding: 0;
 }
+/* Roman numeral blocks — top-level major sections (I, II, III) */
+.alph-popup__dict-block--roman {
+  margin-top: 6px;
+  padding: 4px 0;
+  font-weight: 700;
+}
+/* Capital-letter sub-sections (A, B, C) */
 .alph-popup__dict-block--major {
   margin-top: 4px;
-  padding: 10px 10px 10px 12px;
-  border-left-color: var(--on-surface);
-  background: var(--surface-container-low);
-  border-radius: var(--radius-md);
+  padding: 2px 0;
 }
 .alph-popup__dict-block--sub {
-  padding: 6px 0 6px 12px;
-  border-left-color: var(--outline-variant);
+  padding: 2px 0;
 }
-.alph-popup__dict-block--depth-1 {
-  margin-left: 14px;
-}
-.alph-popup__dict-block--depth-2 {
-  margin-left: 28px;
-}
+/* Per-depth left indentation */
+.alph-popup__dict-block--depth-0 { margin-left: 0; }
+.alph-popup__dict-block--depth-1 { margin-left: 12px; }
+.alph-popup__dict-block--depth-2 { margin-left: 24px; }
+.alph-popup__dict-block--depth-3 { margin-left: 36px; }
+.alph-popup__dict-block--depth-4 { margin-left: 48px; }
 .alph-popup__dict-heading {
   display: block;
   margin-bottom: 5px;
@@ -452,7 +545,7 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   color: var(--on-surface);
   font-weight: 700;
 }
-.alph-popup__def-text :deep(.alph-lookup__dict-quote) {
+.alph-popup__def-text :deep(.alph-popup__dict-quote) {
   color: var(--on-surface-variant);
   font-weight: 600;
   font-style: italic;
@@ -469,10 +562,10 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   font-weight: 600;
 }
 .alph-popup__def-empty {
-  margin: 2px 0 0;
-  padding: 8px 10px;
+  margin: 0;
+  padding: 10px 12px;
   border: 1px solid var(--outline-variant);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface-container-lowest);
   color: var(--on-surface-variant);
   font-size: 12px;
