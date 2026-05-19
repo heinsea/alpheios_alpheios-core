@@ -137,6 +137,17 @@ const SETTINGS_SHELL = {
   advanced: {
     groups: [],
     danger: { name: 'Reset options', help: 'Restore configurable options to defaults.', label: 'Reset' },
+    disclaimer: `This version is a community fork maintained at
+<a href="https://github.com/heinsea/alpheios_alpheios-core" target="_blank">alpheios-core</a>
+and <a href="https://github.com/heinsea/alpheios_webextension" target="_blank">webextension</a>,
+based on the excellent work of the
+<a href="https://github.com/alpheios-project/alpheios-core" target="_blank">Alpheios core library</a>
+and <a href="https://github.com/alpheios-project/webextension" target="_blank">Alpheios browser extension</a>.
+<br><br>
+The Alpheios name, logo, and original codebase are the intellectual property of
+Alpheios Project, Ltd. This fork is an independent, unofficial modification and is
+not endorsed by, affiliated with, or supported by the Alpheios Project or its contributors.
+All trademarks remain the property of their respective owners.`,
     about: [],
     footerMeta: 'Data layer status'
   }
@@ -511,6 +522,11 @@ function logoutAuth () {
     authPageRef.value.logout()
   }
 }
+function syncAuth () {
+  if (authPageRef.value && typeof authPageRef.value.sync === 'function') {
+    authPageRef.value.sync()
+  }
+}
 const settingsFooterMeta = computed(() =>
   settingsPageRef.value && settingsPageRef.value.footerMeta
     ? settingsPageRef.value.footerMeta
@@ -644,7 +660,7 @@ const authFooterMeta = computed(() =>
 
       <template v-else-if="page === 'user'" #footer>
         <span class="alph-app__footer-meta">{{ authFooterMeta }}</span>
-        <Button variant="secondary"><Icon name="cloud_sync" :size="14" /> Sync</Button>
+        <Button variant="secondary" @click="syncAuth"><Icon name="cloud_sync" :size="14" /> Sync</Button>
         <Button variant="secondary" @click="logoutAuth"><Icon name="logout" :size="14" /> Log out</Button>
       </template>
 

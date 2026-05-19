@@ -30,6 +30,8 @@ const authState = ref(null)
 const liveUserData = ref(null)
 const authLoading = ref(false)
 const authError = ref('')
+const syncing = ref(false)
+const lastSyncTime = ref(null)
 
 async function loginIn () {
   if (!controller) { state.value = 'loggedIn'; return }
@@ -54,6 +56,17 @@ async function logout () {
   } catch { /* swallow */ }
 }
 
+async function syncData () {
+  if (!controller) return
+  syncing.value = true
+  try {
+    const data = await controller.api.auth.getUserData()
+    liveUserData.value = data || null
+    lastSyncTime.value = new Date()
+  } catch { /* offline / 401 — noop */ }
+  syncing.value = false
+}
+
 function flip () { state.value = state.value === 'loggedOut' ? 'loggedIn' : 'loggedOut' }
 
 const out = computed(() => props.data.loggedOut)
@@ -65,7 +78,7 @@ const inn = computed(() => {
     const endpoints = liveUserData.value && liveUserData.value.endpoints
     const exp = authState.value.expirationDateTime
     const sessionTxt = exp
-      ? new Date(exp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? new Date(exp).toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '—'
     return {
       ...props.data.loggedIn,
@@ -79,15 +92,20 @@ const inn = computed(() => {
         { value: authState.value.isSessionExpired ? 'Expired' : 'Current', label: 'Status' }
       ],
       activity: props.data.loggedIn.activity,
-      sessions: props.data.loggedIn.sessions
+      sessions: props.data.loggedIn.sessions,
+      lastSync: lastSyncTime.value
+        ? `Synced ${lastSyncTime.value.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}`
+        : props.data.loggedIn.lastSync
     }
   }
   return props.data.loggedIn
 })
 
-const footerMeta = computed(() =>
-  state.value === 'loggedIn' ? inn.value.lastSync : ''
-)
+const footerMeta = computed(() => {
+  if (syncing.value) return 'Syncing…'
+  if (state.value === 'loggedIn') return inn.value.lastSync
+  return ''
+})
 
 /* ── Vuex auth watcher ── */
 let unwatchAuth = null
@@ -132,7 +150,7 @@ onScopeDispose(() => {
   if (unwatchAuth) { try { unwatchAuth() } catch { /* swallow */ } }
 })
 
-defineExpose({ footerMeta, state, loginIn, logout, flip })
+defineExpose({ footerMeta, state, sync: syncData, loginIn, logout, flip })
 </script>
 
 <template>

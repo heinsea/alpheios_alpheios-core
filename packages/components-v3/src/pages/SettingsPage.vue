@@ -406,7 +406,8 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
       <section class="alph-settings__group">
         <h4>About</h4>
       </section>
-      <div class="alph-settings__about">
+      <div v-if="settingsData.advanced.disclaimer" class="alph-settings__disclaimer" v-html="settingsData.advanced.disclaimer" />
+      <div v-if="settingsData.advanced.about && settingsData.advanced.about.length" class="alph-settings__about">
         <div v-for="row in settingsData.advanced.about" :key="row.name" class="alph-settings__about-row">
           <span>{{ row.name }}</span>
           <span class="alph-settings__about-v">{{ row.value }}</span>
@@ -556,6 +557,23 @@ defineExpose({ footerMeta, dirty, dirtyCount, reset })
   border-top: 1px solid var(--divider);
 }
 .alph-settings__about-row:first-of-type { border-top: 0; }
+.alph-settings__disclaimer {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-lg);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--on-surface-variant);
+}
+.alph-settings__disclaimer :deep(a) {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.alph-settings__disclaimer :deep(a:hover) { text-decoration: underline; }
+
 .alph-settings__about-v {
   font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
   color: var(--on-surface-variant);
