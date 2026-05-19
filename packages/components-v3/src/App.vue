@@ -209,15 +209,22 @@ function emptyShape (lemma, lang, definitionLine) {
   }
 }
 
+const lookupActiveLang = computed(() => {
+  // For success, use the homonym's actual language.
+  // For loading / no-result / idle, use the currently selected lookup language.
+  if (live.state.value === 'success' && live.data.value) return live.data.value.lang
+  return selectedLookupLangLabel.value || 'Lookup'
+})
+
 const lookupData = computed(() => {
   if (live.state.value === 'success' && live.data.value) {
     return live.data.value
   }
   if (live.state.value === 'loading') {
-    return emptyShape(live.targetWord.value, live.lang.value, 'Looking up…')
+    return emptyShape(live.targetWord.value, lookupActiveLang.value, 'Looking up…')
   }
   if (live.state.value === 'no-result') {
-    return emptyShape(live.targetWord.value, live.lang.value,
+    return emptyShape(live.targetWord.value, lookupActiveLang.value,
       `No entry found for ${live.targetWord.value || 'this word'} in any lexicon.`)
   }
   if (!controller) {
@@ -238,6 +245,32 @@ const lookupLanguageOption = computed(() => controller && controller.api.setting
 )
 const lookupLanguageOptions = computed(() => lookupLanguageItems(lookupLanguageOption.value))
 const selectedLookupLangValue = ref('')
+
+/* ── Auto-detect language from text via Unicode script ── */
+const SCRIPT_DETECT = [
+  { range: /[\u0370-\u03FF\u1F00-\u1FFF]/, code: 'grc',  label: 'Greek' },
+  { range: /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/, code: 'arafirst', label: '' },
+  { range: /[\u2E80-\u2FDF\u3000-\u303F\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/, code: 'zho', label: 'Chinese' },
+  { range: /[\u1200-\u137F]/, code: 'gez',  label: 'Geez' },
+  { range: /[\u0700-\u074F]/, code: 'syr',  label: 'Syriac' },
+]
+function detectLangFromText (text) {
+  if (!text) return null
+  for (const d of SCRIPT_DETECT) {
+    if (d.range.test(text)) {
+      // Arabic script is shared by Arabic and Persian — can't tell them
+      // apart by character alone. Prefer the user's current selection if
+      // it's one of them, otherwise default to Arabic.
+      if (d.code === 'arafirst') {
+        const cur = selectedLookupLang.value
+        return { code: (cur === 'per' || cur === 'ara') ? cur : 'ara', label: cur === 'per' ? 'Persian' : 'Arabic' }
+      }
+      return d
+    }
+  }
+  return null
+}
+
 const selectedLookupLang = computed(() => resolveLookupLanguageCode({
   selectedRefValue: selectedLookupLangValue.value,
   storeState: controller && controller._store && controller._store.state.app,
@@ -262,20 +295,35 @@ function onLookupLanguageChange (event) {
 
 function onSearchEnter (value) {
   if (!controller || !value || !value.trim()) return
-  // Match v2 lookup.vue: typed lookups are driven by the lookup-language
-  // option, not by the language of whatever homonym happened to be current.
-  // Reusing currentLanguageCode first can send a Latin search like `quamquam`
-  // to the wrong analyzer after a previous non-Latin lookup.
+  const text = value.trim()
   const s = controller._store.state.app
   const lookupLanguage = controller.api.settings &&
     controller.api.settings.getFeatureOptions().items.lookupLanguage
-  const code = resolveLookupLanguageCode({
-    selectedRefValue: selectedLookupLangValue.value,
-    storeState: s,
-    option: lookupLanguage
-  })
+
+  // Auto-detect language from the input script FIRST, before any stored
+  // preference — Greek text should always look up as Greek, etc.
+  const detected = detectLangFromText(text)
+  let code
+  if (detected && lookupLanguageOptions.value.some(o => o.value === detected.code)) {
+    code = detected.code
+    // Sync the stored option so the dropdown reflects the auto-detected language
+    selectLookupLanguage({
+      option: lookupLanguage,
+      store: controller._store,
+      selectedText: detected.label
+    })
+    selectedLookupLangValue.value = code
+  } else {
+    // Latin-script text — use the stored preference
+    code = resolveLookupLanguageCode({
+      selectedRefValue: selectedLookupLangValue.value,
+      storeState: s,
+      option: lookupLanguage
+    })
+  }
+
   if (typeof controller.runLookup === 'function') {
-    controller.runLookup(value, code)
+    controller.runLookup(text, code)
   }
 }
 
@@ -423,6 +471,23 @@ watch(() => selectedLookupLang.value, async (langCode) => {
 onMounted(() => {
   applyUrlOverrides()
 })
+
+// Seed selectedLookupLangValue from the option and keep it in sync when the
+// settings controller resets it (e.g. auth login re-initialisation).
+watch(lookupLanguageOption, (opt, _old, onCleanup) => {
+  if (!opt) return
+  let applied = false
+  function sync () {
+    if (opt.currentValue && !applied) {
+      selectedLookupLangValue.value = opt.currentValue
+      applied = true
+    }
+  }
+  sync()
+  // The option may change its currentValue after init — poll once
+  const t = setTimeout(sync, 200)
+  onCleanup(() => clearTimeout(t))
+}, { immediate: true })
 
 
 /* ───── Surface visibility ───── */

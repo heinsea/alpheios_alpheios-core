@@ -152,7 +152,6 @@ defineExpose({ footerMeta })
           </button>
         </div>
         <div class="alph-resources__browser-title">
-          <span>{{ grammarTitle }}</span>
           <small>{{ grammar.language || 'Latin' }} grammar</small>
         </div>
         <a
