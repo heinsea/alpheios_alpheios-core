@@ -15,7 +15,7 @@
  * The arrow is a 12 × 12 rotated ::before — colour matches glass background.
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import Button from '../primitives/Button.vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
@@ -89,11 +89,146 @@ const emptyDefinitionText = computed(() => (
 ))
 
 const showFullBody = computed(() => props.state === 'default' || props.state === 'error')
+
+/* ── Drag to move + edge resize ── */
+const EDGE = 8 // px
+const popupRef = ref(null)
+const popupPos = ref(null)          // { left, top } — set on mount and after every drag/resize
+const popupCustomWidth = ref(null)
+const popupCustomHeight = ref(null)
+
+const dragging = ref(false)
+const dragState = {}
+
+const resizing = ref(false)
+const resizeEdge = ref('')
+const resizeState = {}
+
+function popupRect () { return popupRef.value.getBoundingClientRect() }
+function headerBottom () {
+  const h = popupRef.value.querySelector('.alph-popup__header')
+  return h ? h.getBoundingClientRect().bottom : 0
+}
+
+function edgeAt (r, e) {
+  // Exclude header area — edges there belong to drag, not resize
+  if (e.clientY <= headerBottom() + 2) return ''
+  const t = e.clientY - r.top <= EDGE
+  const b = r.bottom - e.clientY <= EDGE
+  const l = e.clientX - r.left <= EDGE
+  const ri = r.right - e.clientX <= EDGE
+  if (t && l) return 'nw'; if (t && ri) return 'ne'
+  if (b && l) return 'sw'; if (b && ri) return 'se'
+  if (t) return 'n'; if (b) return 's'
+  if (l) return 'w'; if (ri) return 'e'
+  return ''
+}
+const EDGE_CURSOR = { n:'ns', s:'ns', e:'ew', w:'ew', nw:'nwse', se:'nwse', ne:'nesw', sw:'nesw' }
+
+/* Initialise position from computed CSS defaults; use the live rect so
+   explicit left/top/right:auto inline style replaces the CSS right anchor. */
+onMounted(() => {
+  const r = popupRect()
+  popupPos.value = { left: r.left, top: r.top }
+})
+
+function applyPos (left, top) {
+  popupPos.value = { left, top }
+}
+
+/* ── Pointer events ── */
+function onHeaderPointerDown (e) {
+  if (e.target.closest('button')) return
+  // If the pointer is on a resize edge, prefer resize over drag
+  const r = popupRect()
+  if (edgeAt(r, e)) return
+  dragging.value = true
+  document.body.style.cursor = 'grabbing'
+  dragState.sx = e.clientX; dragState.sy = e.clientY
+  dragState.sl = r.left; dragState.st = r.top
+  popupRef.value.setPointerCapture(e.pointerId)
+  e.preventDefault()
+}
+
+function onRootPointerDown (e) {
+  if (dragging.value || resizing.value) return
+  if (e.target.closest('button')) return
+  const r = popupRect()
+  const edge = edgeAt(r, e)
+  if (!edge) return
+  resizing.value = true
+  resizeEdge.value = edge
+  document.body.style.cursor = EDGE_CURSOR[edge] || 'ew-resize'
+  resizeState.sx = e.clientX; resizeState.sy = e.clientY
+  resizeState.sl = r.left; resizeState.st = r.top
+  resizeState.sw = r.width; resizeState.sh = r.height
+  popupRef.value.setPointerCapture(e.pointerId)
+  e.preventDefault()
+}
+
+function onPointerMove (e) {
+  if (dragging.value) {
+    const l = dragState.sl + (e.clientX - dragState.sx)
+    const t = Math.max(0, dragState.st + (e.clientY - dragState.sy))
+    applyPos(l, t)
+    return
+  }
+  if (resizing.value) {
+    const dx = e.clientX - resizeState.sx
+    const dy = e.clientY - resizeState.sy
+    let w = resizeState.sw, h = resizeState.sh
+    let l = resizeState.sl, t = resizeState.st
+    const ed = resizeEdge.value
+    if (ed.includes('e')) w = resizeState.sw + dx
+    if (ed.includes('w')) { w = resizeState.sw - dx; l = resizeState.sl + dx }
+    if (ed.includes('s')) h = resizeState.sh + dy
+    if (ed.includes('n')) { h = resizeState.sh - dy; t = resizeState.st + dy }
+    w = Math.max(280, Math.min(1200, w))
+    h = Math.max(200, Math.min(800, h))
+    popupCustomWidth.value = w
+    popupCustomHeight.value = h
+    applyPos(l, Math.max(0, t))
+    return
+  }
+  // Hover — show resize cursor near edges (body area only)
+  const ed = edgeAt(popupRect(), e)
+  popupRef.value.style.cursor = ed ? (EDGE_CURSOR[ed] || '') : ''
+}
+
+function onPointerUp () {
+  dragging.value = false
+  resizing.value = false
+  resizeEdge.value = ''
+  document.body.style.cursor = ''
+  popupRef.value.style.cursor = ''
+}
+
+const popupRootStyle = computed(() => {
+  const s = {}
+  if (popupPos.value) {
+    s.left = `${popupPos.value.left}px`
+    s.top = `${popupPos.value.top}px`
+    s.right = 'auto'
+  }
+  if (popupCustomWidth.value) s.width = `${popupCustomWidth.value}px`
+  if (popupCustomHeight.value) s.height = `${popupCustomHeight.value}px`
+  return s
+})
+
 </script>
 
 <template>
-  <div class="alph-popup alpheios-v3-scope" :class="`alph-popup--arrow-${arrowDir}`">
-    <header class="alph-popup__header">
+  <div
+    ref="popupRef"
+    class="alph-popup alpheios-v3-scope"
+    :class="`alph-popup--arrow-${arrowDir}`"
+    :style="popupRootStyle"
+    @pointerdown="onRootPointerDown"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerUp"
+  >
+    <header class="alph-popup__header" @pointerdown="onHeaderPointerDown">
       <span class="alph-brand alph-brand--popup">α</span>
       <span class="alph-popup__target lang-classical">{{ targetWord }}</span>
       <div class="alph-popup__actions">
@@ -240,17 +375,11 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
           <Icon name="add" :size="14" />
           Add to list
         </Button>
-        <Button variant="secondary" aria-label="Expand to drawer" @click="emit('expand')">
-          <Icon name="open_in_full" :size="14" />
-        </Button>
       </template>
       <template v-else-if="state === 'loading'">
         <Button variant="primary" block disabled>
           <Icon name="add" :size="14" />
           Add to list
-        </Button>
-        <Button variant="secondary" disabled aria-label="Expand">
-          <Icon name="open_in_full" :size="14" />
         </Button>
       </template>
       <template v-else-if="state === 'no-result'">
@@ -271,7 +400,8 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
 
 <style scoped>
 .alph-popup {
-  position: relative;
+  position: fixed;
+  top: 96px; right: 32px; /* default — overridden by drag */
   width: var(--popup-width);
   max-height: 480px;
   border-radius: var(--radius-xl);
@@ -313,6 +443,9 @@ const showFullBody = computed(() => props.state === 'default' || props.state ===
   border-bottom: 1px solid var(--divider);
   background: rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
 [data-theme="dark"] .alph-popup__header { background: rgba(0, 0, 0, 0.15); }
 

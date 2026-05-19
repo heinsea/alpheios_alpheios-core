@@ -119,7 +119,8 @@ const SETTINGS_SHELL = {
         rows: [
           { id: 'panelPosition', kind: 'segInline', label: 'Panel position', value: 'right', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
           { id: 'popupMaxWidth', kind: 'slider', label: 'Popup max width', min: 400, max: 1200, value: 800, unit: '' },
-          { id: 'hideLogin', kind: 'toggle', label: 'Hide login prompt', value: false }
+          { id: 'hideLogin', kind: 'toggle', label: 'Hide login prompt', value: false },
+          { id: 'useLegacyUI', kind: 'toggle', label: 'Use legacy UI', value: false, help: 'Switch to the classic Alpheios interface. Takes effect on the next page load.' }
         ]
       }
     ]
@@ -145,9 +146,13 @@ const AUTH_SHELL = {
   loggedOut: {
     title: 'Sign in to sync',
     sub: 'Authentication is connected to the extension background service.',
-    ctaLabel: 'Continue',
-    features: [],
-    footnote: ''
+    ctaLabel: 'Continue with Auth0',
+    features: [
+      { icon: 'sync',       title: 'Cross-device sync',    desc: 'Word lists and settings sync between your devices.' },
+      { icon: 'history',    title: 'Lookup history',       desc: 'Your word lookups are saved and searchable.' },
+      { icon: 'bookmark',   title: 'Word list management', desc: 'Import, export, and review your saved words anywhere.' }
+    ],
+    footnote: 'By signing in you agree to the <a href="https://alpheios.net/pages/userterms" target="_blank">terms of service</a> and <a href="https://alpheios.net/pages/privacy-policy" target="_blank">privacy policy</a>.'
   },
   loggedIn: {
     avatarInitials: '?',
@@ -435,7 +440,7 @@ const langLabel = computed(() => {
 })
 
 const showSearchSlot = computed(() => page.value === 'lookup' || page.value === 'morph')
-const drawerCollapseTarget = ref('toolbar')
+const drawerCollapseTarget = ref('popup')  // collapse always returns to popup lookup
 
 /* ───── Popup state ─────
  * URL override (?state=loading) drives the demo Stage 2 path. When a real
@@ -456,7 +461,7 @@ function expandToDrawer () {
   uiStore.setSurface('drawer')
 }
 function openDrawerFromToolbar () {
-  drawerCollapseTarget.value = 'toolbar'
+  drawerCollapseTarget.value = 'popup'
 }
 function showAddedToast () {
   uiStore.showToast({
@@ -664,10 +669,10 @@ const authFooterMeta = computed(() =>
   pointer-events: none;
 }
 .alph-app__popup-wrap {
-  /* Stage 2: popup floats fixed near top-right for preview. Stage 4 will
-   * pin it to the actual selection rect. */
+  /* Popup manages its own position (drag + default top-right anchor).
+   * The wrap only provides the stacking context. */
   position: fixed;
-  top: 96px; right: 32px;
+  top: 0; left: 0;
   z-index: 40;
   pointer-events: auto;
 }

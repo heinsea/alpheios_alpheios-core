@@ -39,7 +39,7 @@ export const POPUP_STATES = ['default', 'loading', 'no-result', 'error']
 export const DRAWER_POSITIONS = ['left', 'right']
 
 const state = reactive({
-  surface: 'drawer',           // current surface
+  surface: 'popup',            // current surface — default to popup (lookup)
   page: 'lookup',              // current drawer page
   popupState: 'default',       // current popup state
   drawerPosition: DEFAULT_DRAWER_POSITION, // mirrors UI panelPosition setting

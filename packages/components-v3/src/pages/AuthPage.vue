@@ -3,13 +3,13 @@
  * AuthPage — DESIGN §7 + mockup drawer-auth.html.
  *
  * Two states:
- *   loggedOut — feature pitch + Auth0 CTA. Skip writes a "hide login"
- *               flag (Stage 4).
+ *   loggedOut — feature pitch + Auth0 CTA
  *   loggedIn  — avatar + email + plan chip + 3 stat cards + recent
  *               activity + active sessions list.
  *
- * Local toggle by clicking the demo-only "switch state" Chip — Stage 4
- * will derive `state` from `appController.api.auth.isAuthenticated()`.
+ * When an AppController is available (live auth), state is driven by the
+ * Vuex auth store. In sandbox mode (no controller) a local flip() toggles
+ * between the two states for demo purposes.
  */
 
 import { ref, computed, onMounted, onScopeDispose } from 'vue'
@@ -25,40 +25,48 @@ const props = defineProps({
 
 const controller = useAppController()
 
-const state = ref('loggedOut') // 'loggedOut' | 'loggedIn'
+const state = ref('loggedOut')
 const authState = ref(null)
 const liveUserData = ref(null)
 const authLoading = ref(false)
+const authError = ref('')
 
 async function loginIn () {
-  if (controller) {
-    authLoading.value = true
-    try {
-      controller.api.auth.authenticate()
-    } catch { /* swallow */ }
+  if (!controller) { state.value = 'loggedIn'; return }
+  authLoading.value = true
+  authError.value = ''
+  try {
+    await controller.api.auth.authenticate()
+    // On success the Vuex watcher flips state → loggedIn
+  } catch (err) {
+    authError.value = (err && err.message)
+      ? err.message
+      : 'Authentication failed. Please try again.'
+  } finally {
     authLoading.value = false
-  } else {
-    state.value = 'loggedIn'
   }
 }
 
 async function logout () {
-  if (controller) {
-    try {
-      await controller.api.auth.logout()
-    } catch { /* swallow */ }
-  } else {
-    state.value = 'loggedOut'
-  }
+  if (!controller) { state.value = 'loggedOut'; return }
+  try {
+    await controller.api.auth.logout()
+  } catch { /* swallow */ }
 }
 
 function flip () { state.value = state.value === 'loggedOut' ? 'loggedIn' : 'loggedOut' }
 
 const out = computed(() => props.data.loggedOut)
+
 const inn = computed(() => {
   if (authState.value && authState.value.isAuthenticated) {
     const displayName = authState.value.userNickName || authState.value.userId || props.data.loggedIn.name
     const userMeta = authState.value.userId || props.data.loggedIn.email
+    const endpoints = liveUserData.value && liveUserData.value.endpoints
+    const exp = authState.value.expirationDateTime
+    const sessionTxt = exp
+      ? new Date(exp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—'
     return {
       ...props.data.loggedIn,
       avatarInitials: (displayName || '?').charAt(0).toUpperCase(),
@@ -66,24 +74,26 @@ const inn = computed(() => {
       email: userMeta,
       plan: 'Alpheios user',
       stats: [
-        { value: liveUserData.value && liveUserData.value.endpoints ? Object.keys(liveUserData.value.endpoints).length : 0, label: 'Endpoints' },
-        { value: authState.value.expirationDateTime ? 'Active' : '—', label: 'Session' },
+        { value: endpoints ? Object.keys(endpoints).length : 0, label: 'Endpoints' },
+        { value: sessionTxt, label: 'Session until' },
         { value: authState.value.isSessionExpired ? 'Expired' : 'Current', label: 'Status' }
       ],
-      activity: props.data.loggedIn.activity
+      activity: props.data.loggedIn.activity,
+      sessions: props.data.loggedIn.sessions
     }
   }
   return props.data.loggedIn
 })
 
 const footerMeta = computed(() =>
-  state.value === 'loggedIn' ? inn.value.lastSync : out.value.version
+  state.value === 'loggedIn' ? inn.value.lastSync : ''
 )
 
-// Watch auth state from Vuex store
+/* ── Vuex auth watcher ── */
 let unwatchAuth = null
 onMounted(() => {
   if (controller) {
+    // Restore any existing session
     try { controller.api.auth.session() } catch { /* swallow */ }
     unwatchAuth = controller._store.watch(
       (st) => st.auth && {
@@ -98,14 +108,19 @@ onMounted(() => {
         authState.value = nextAuthState
         if (nextAuthState && nextAuthState.isAuthenticated) {
           state.value = 'loggedIn'
-          try {
-            controller.api.auth.getUserData().then(d => {
-              liveUserData.value = d || null
-            }).catch(() => {})
-          } catch { /* swallow */ }
+          authLoading.value = false
+          authError.value = ''
+          controller.api.auth.getUserData().then(d => {
+            liveUserData.value = d || null
+          }).catch(() => {})
         } else {
           state.value = 'loggedOut'
           liveUserData.value = null
+          // Show login-failure notification text as error, if present
+          const n = nextAuthState && nextAuthState.notification
+          if (n && n.text && n.visible && n.text.toLowerCase().indexOf('fail') > -1) {
+            authError.value = n.text
+          }
         }
       },
       { immediate: true }
@@ -142,10 +157,21 @@ defineExpose({ footerMeta, state, loginIn, logout, flip })
           </li>
         </ul>
 
-        <button class="alph-auth__cta" @click="loginIn">
-          <Icon name="login" :size="14" />
-          {{ out.ctaLabel }}
+        <button
+          class="alph-auth__cta"
+          :class="{ 'alph-auth__cta--loading': authLoading }"
+          :disabled="authLoading"
+          @click="loginIn"
+        >
+          <span v-if="authLoading" class="alph-auth__cta-spinner" />
+          <Icon v-else name="login" :size="14" />
+          {{ authLoading ? 'Signing in…' : out.ctaLabel }}
         </button>
+
+        <p v-if="authError" class="alph-auth__error">
+          <Icon name="error" :size="12" />
+          {{ authError }}
+        </p>
 
         <p class="alph-auth__foot" v-html="out.footnote" />
       </div>
@@ -272,6 +298,29 @@ defineExpose({ footerMeta, state, loginIn, logout, flip })
   transition: opacity var(--motion-fast);
 }
 .alph-auth__cta:hover { opacity: 0.92; }
+.alph-auth__cta:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.alph-auth__cta-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: alph-auth-spin 0.6s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+@keyframes alph-auth-spin { to { transform: rotate(360deg); } }
+
+.alph-auth__error {
+  display: flex; align-items: center; gap: 6px;
+  max-width: 280px; width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--error-container);
+  color: var(--on-error-container);
+  font-size: 11px; line-height: 16px;
+  margin: 0;
+}
 
 .alph-auth__foot {
   margin: 0;

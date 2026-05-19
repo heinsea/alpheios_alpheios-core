@@ -167,7 +167,7 @@ function buildLiveResources (resOpts) {
   }
 }
 
-function populateFromApi () {
+async function populateFromApi () {
   if (!controller) return
   try {
     const ui = controller.api.settings.getUiOptions()
@@ -188,14 +188,34 @@ function populateFromApi () {
     }
     const resOpts = controller.api.settings.getResourceOptions && controller.api.settings.getResourceOptions()
     buildLiveResources(resOpts)
-    snapshotInitial()
   } catch { /* silent fallback to fixture */ }
+  // useLegacyUI lives in extension storage (not the alpheios settings API)
+  // Read it before snapshotting so the dirty tracker sees the real initial value.
+  await populateLegacyUIPref()
+  snapshotInitial()
+}
+
+async function populateLegacyUIPref () {
+  try {
+    const stored = await browser.storage.local.get('useLegacyUI')
+    if (stored && typeof stored.useLegacyUI === 'boolean') {
+      values.useLegacyUI = stored.useLegacyUI
+    }
+  } catch { /* storage unavailable (e.g. sandbox) — use fixture default */ }
 }
 
 function updateSetting (key, value) {
   values[key] = value
   if (key === 'panelPosition') {
     uiStore.setDrawerPosition(value)
+  }
+  // useLegacyUI is stored in extension storage, not the alpheios settings API
+  if (key === 'useLegacyUI') {
+    try {
+      browser.storage.local.set({ useLegacyUI: value })
+    } catch { /* storage unavailable — ignore */ }
+    markSaved(key)
+    return
   }
   if (!controller) return
   const mapping = OPTION_MAP[key]
@@ -248,6 +268,9 @@ onMounted(() => {
       controller._store.watch((st) => st.settings && st.settings.featureResetCounter, populateFromApi),
       controller._store.watch((st) => st.settings && st.settings.resourceResetCounter, populateFromApi)
     ]
+  } else {
+    // In sandbox / no-controller mode, still read the legacy UI pref from storage
+    populateLegacyUIPref()
   }
 })
 
