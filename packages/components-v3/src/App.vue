@@ -17,7 +17,7 @@
  *             toggles surface based on selection / FAB clicks.
  */
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onScopeDispose, watch } from 'vue'
 
 import Popup from './surfaces/Popup.vue'
 import Drawer from './surfaces/Drawer.vue'
@@ -472,22 +472,22 @@ onMounted(() => {
   applyUrlOverrides()
 })
 
-// Seed selectedLookupLangValue from the option and keep it in sync when the
-// settings controller resets it (e.g. auth login re-initialisation).
-watch(lookupLanguageOption, (opt, _old, onCleanup) => {
-  if (!opt) return
-  let applied = false
-  function sync () {
-    if (opt.currentValue && !applied) {
-      selectedLookupLangValue.value = opt.currentValue
-      applied = true
-    }
-  }
-  sync()
-  // The option may change its currentValue after init — poll once
-  const t = setTimeout(sync, 200)
-  onCleanup(() => clearTimeout(t))
-}, { immediate: true })
+// Mirror the Vuex 3 store's selectedLookupLangCode into the Vue 3 ref.
+// Must use store.watch() because Vue 3's watch() cannot track Vuex 3 state.
+onMounted(() => {
+  const store = controller && controller._store
+  if (!store) return
+  const unwatch = store.watch(
+    (st) => st.app.selectedLookupLangCode,
+    (code) => {
+      if (code && code !== selectedLookupLangValue.value) {
+        selectedLookupLangValue.value = code
+      }
+    },
+    { immediate: true }
+  )
+  onScopeDispose(() => { try { unwatch() } catch {} })
+})
 
 
 /* ───── Surface visibility ───── */
