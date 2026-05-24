@@ -189,17 +189,17 @@ async function populateFromApi () {
     const resOpts = controller.api.settings.getResourceOptions && controller.api.settings.getResourceOptions()
     buildLiveResources(resOpts)
   } catch { /* silent fallback to fixture */ }
-  // useLegacyUI lives in extension storage (not the alpheios settings API)
+  // useClassicUI lives in extension storage (not the alpheios settings API)
   // Read it before snapshotting so the dirty tracker sees the real initial value.
-  await populateLegacyUIPref()
+  await populateClassicUIPref()
   snapshotInitial()
 }
 
-async function populateLegacyUIPref () {
+async function populateClassicUIPref () {
   try {
-    const stored = await browser.storage.local.get('useLegacyUI')
-    if (stored && typeof stored.useLegacyUI === 'boolean') {
-      values.useLegacyUI = stored.useLegacyUI
+    const stored = await browser.storage.local.get('useClassicUI')
+    if (stored && typeof stored.useClassicUI === 'boolean') {
+      values.useClassicUI = stored.useClassicUI
     }
   } catch { /* storage unavailable (e.g. sandbox) — use fixture default */ }
 }
@@ -209,10 +209,10 @@ function updateSetting (key, value) {
   if (key === 'panelPosition') {
     uiStore.setDrawerPosition(value)
   }
-  // useLegacyUI is stored in extension storage, not the alpheios settings API
-  if (key === 'useLegacyUI') {
+  // useClassicUI is stored in extension storage, not the alpheios settings API
+  if (key === 'useClassicUI') {
     try {
-      browser.storage.local.set({ useLegacyUI: value })
+      browser.storage.local.set({ useClassicUI: value })
     } catch { /* storage unavailable — ignore */ }
     markSaved(key)
     return
@@ -269,8 +269,8 @@ onMounted(() => {
       controller._store.watch((st) => st.settings && st.settings.resourceResetCounter, populateFromApi)
     ]
   } else {
-    // In sandbox / no-controller mode, still read the legacy UI pref from storage
-    populateLegacyUIPref()
+    // In sandbox / no-controller mode, still read the classic UI pref from storage
+    populateClassicUIPref()
   }
 })
 

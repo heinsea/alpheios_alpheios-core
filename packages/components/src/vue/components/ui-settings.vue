@@ -38,15 +38,15 @@
     >
     </setting>
 
-    <!-- useLegacyUI is an extension-level preference stored in
+    <!-- useClassicUI is an extension-level preference stored in
          browser.storage.local, not an alpheios settings option.
          Rendered as a standalone checkbox outside the <setting> flow. -->
-    <div class="alpheios-ui-options__item alpheios-legacy-ui-toggle" v-if="legacyUILoaded">
-      <label class="alpheios-setting__label">Use legacy UI</label>
+    <div class="alpheios-ui-options__item alpheios-classic-ui-toggle" v-if="classicUILoaded">
+      <label class="alpheios-setting__label">Use classic UI</label>
       <div class="alpheios-checkbox-block alpheios-setting__control">
-        <input type="checkbox" v-model="useLegacyUI" id="alpheios-ui-legacy-toggle">
-        <label for="alpheios-ui-legacy-toggle">Yes
-          <span class="alpheios-legacy-ui-note">(takes effect on next page load)</span>
+        <input type="checkbox" v-model="useClassicUI" id="alpheios-ui-classic-toggle">
+        <label for="alpheios-ui-classic-toggle">Yes
+          <span class="alpheios-classic-ui-note">(takes effect on next page load)</span>
         </label>
       </div>
     </div>
@@ -76,8 +76,8 @@ export default {
   data: function () {
     return {
       maxPopupWidth: this.settings.getUiOptions().items.maxPopupWidth.currentValue,
-      useLegacyUI: false,
-      legacyUILoaded: false
+      useClassicUI: false,
+      classicUILoaded: false
     }
   },
   computed: {
@@ -93,12 +93,12 @@ export default {
     maxPopupWidth: function (value) {
       this.settings.uiOptionChange('maxPopupWidth', value)
     },
-    useLegacyUI: function (value) {
-      if (this._legacyUIReady) {
+    useClassicUI: function (value) {
+      if (this._classicUIReady) {
         try {
           var b = (typeof browser !== 'undefined' && browser) || (typeof window !== 'undefined' && window.browser)
           if (b && b.storage && b.storage.local) {
-            b.storage.local.set({ useLegacyUI: value })
+            b.storage.local.set({ useClassicUI: value })
           }
         } catch (_) { /* swallow */ }
       }
@@ -109,23 +109,23 @@ export default {
     try {
       var b = (typeof browser !== 'undefined' && browser) || (typeof window !== 'undefined' && window.browser)
       if (b && b.storage && b.storage.local) {
-        b.storage.local.get('useLegacyUI').then(function (stored) {
-          if (stored && typeof stored.useLegacyUI === 'boolean') {
-            self.useLegacyUI = stored.useLegacyUI
+        b.storage.local.get('useClassicUI').then(function (stored) {
+          if (stored && typeof stored.useClassicUI === 'boolean') {
+            self.useClassicUI = stored.useClassicUI
           }
-          self._legacyUIReady = true
-          self.legacyUILoaded = true
+          self._classicUIReady = true
+          self.classicUILoaded = true
         }).catch(function () {
-          self._legacyUIReady = true
-          self.legacyUILoaded = true
+          self._classicUIReady = true
+          self.classicUILoaded = true
         })
       } else {
-        self._legacyUIReady = true
-        self.legacyUILoaded = true
+        self._classicUIReady = true
+        self.classicUILoaded = true
       }
     } catch (_) {
-      self._legacyUIReady = true
-      self.legacyUILoaded = true
+      self._classicUIReady = true
+      self.classicUILoaded = true
     }
   },
   methods: {
@@ -166,7 +166,7 @@ export default {
     }
   }
 
-  .alpheios-legacy-ui-note {
+  .alpheios-classic-ui-note {
     font-size: textsize(10px);
     color: var(--alpheios-desktop-panel-icon-color);
     font-style: italic;

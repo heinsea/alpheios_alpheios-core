@@ -120,7 +120,7 @@ const SETTINGS_SHELL = {
           { id: 'panelPosition', kind: 'segInline', label: 'Panel position', value: 'right', options: [{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }] },
           { id: 'popupMaxWidth', kind: 'slider', label: 'Popup max width', min: 400, max: 1200, value: 800, unit: '' },
           { id: 'hideLogin', kind: 'toggle', label: 'Hide login prompt', value: false },
-          { id: 'useLegacyUI', kind: 'toggle', label: 'Use legacy UI', value: false, help: 'Switch to the classic Alpheios interface. Takes effect on the next page load.' }
+          { id: 'useClassicUI', kind: 'toggle', label: 'Use classic UI', value: false, help: 'Switch to the classic Alpheios interface. Takes effect on the next page load.' }
         ]
       }
     ]

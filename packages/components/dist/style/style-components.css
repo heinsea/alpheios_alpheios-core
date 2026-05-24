@@ -3167,7 +3167,7 @@ p.alpheios-word-usage-filter-title {
   display: flex !important;
   justify-content: space-between;
 }
-.alpheios-legacy-ui-note {
+.alpheios-classic-ui-note {
   font-size: calc(var(--alpheios-base-text-size) * 0.625);
   color: var(--alpheios-desktop-panel-icon-color);
   font-style: italic;
