@@ -1,0 +1,37 @@
+{
+  "noLanguage": {
+    "title": "No language detected",
+    "desc": "We couldn't determine the language of the selected text. Configure languages or pick one manually.",
+    "primaryLink": { "label": "Configure languages →", "href": "#" }
+  },
+  "noResult": {
+    "lemma": "xyzzy",
+    "lang": "Latin",
+    "title": "No entry found",
+    "desc": "We couldn't find <em class=\"lang-classical\">xyzzy</em> in any Latin lexicon. Try a different form, or change the search language.",
+    "links": [
+      { "label": "Switch language →", "href": "#" },
+      { "label": "Lookup variants →", "href": "#" }
+    ]
+  },
+  "loading": {
+    "lemma": "Troiae",
+    "lang": "Latin"
+  },
+  "error": {
+    "lemma": "ab oris",
+    "lang": "Latin",
+    "banner": {
+      "title": "Couldn't reach the lexicon service",
+      "desc": "Check your connection or sign in again. Cached entries are still available."
+    },
+    "cachedPos": [
+      { "kind": "primary", "label": "Noun" },
+      { "kind": "feature", "label": "Feminine" },
+      { "kind": "feature", "label": "Plural" }
+    ],
+    "cachedDefs": [
+      "a shore, coast (genitive of <em class=\"lang-classical\">ora</em>)"
+    ]
+  }
+}

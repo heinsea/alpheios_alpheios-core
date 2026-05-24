@@ -37,6 +37,19 @@
         @change="uiOptionChanged"
     >
     </setting>
+
+    <!-- useClassicUI is an extension-level preference stored in
+         browser.storage.local, not an alpheios settings option.
+         Rendered as a standalone checkbox outside the <setting> flow. -->
+    <div class="alpheios-ui-options__item alpheios-classic-ui-toggle" v-if="classicUILoaded">
+      <label class="alpheios-setting__label">Use classic UI</label>
+      <div class="alpheios-checkbox-block alpheios-setting__control">
+        <input type="checkbox" v-model="useClassicUI" id="alpheios-ui-classic-toggle">
+        <label for="alpheios-ui-classic-toggle">Yes
+          <span class="alpheios-classic-ui-note">(takes effect on next page load)</span>
+        </label>
+      </div>
+    </div>
   </div>
 </template>
 <script>
@@ -62,7 +75,9 @@ export default {
   },
   data: function () {
     return {
-      maxPopupWidth: this.settings.getUiOptions().items.maxPopupWidth.currentValue
+      maxPopupWidth: this.settings.getUiOptions().items.maxPopupWidth.currentValue,
+      useClassicUI: false,
+      classicUILoaded: false
     }
   },
   computed: {
@@ -76,8 +91,41 @@ export default {
   },
   watch: {
     maxPopupWidth: function (value) {
-      // A value of maxPopupWidth has changed
       this.settings.uiOptionChange('maxPopupWidth', value)
+    },
+    useClassicUI: function (value) {
+      if (this._classicUIReady) {
+        try {
+          var b = (typeof browser !== 'undefined' && browser) || (typeof window !== 'undefined' && window.browser)
+          if (b && b.storage && b.storage.local) {
+            b.storage.local.set({ useClassicUI: value })
+          }
+        } catch (_) { /* swallow */ }
+      }
+    }
+  },
+  mounted: function () {
+    var self = this
+    try {
+      var b = (typeof browser !== 'undefined' && browser) || (typeof window !== 'undefined' && window.browser)
+      if (b && b.storage && b.storage.local) {
+        b.storage.local.get('useClassicUI').then(function (stored) {
+          if (stored && typeof stored.useClassicUI === 'boolean') {
+            self.useClassicUI = stored.useClassicUI
+          }
+          self._classicUIReady = true
+          self.classicUILoaded = true
+        }).catch(function () {
+          self._classicUIReady = true
+          self.classicUILoaded = true
+        })
+      } else {
+        self._classicUIReady = true
+        self.classicUILoaded = true
+      }
+    } catch (_) {
+      self._classicUIReady = true
+      self.classicUILoaded = true
     }
   },
   methods: {
@@ -116,5 +164,12 @@ export default {
       display: flex !important;
       justify-content: space-between;
     }
+  }
+
+  .alpheios-classic-ui-note {
+    font-size: textsize(10px);
+    color: var(--alpheios-desktop-panel-icon-color);
+    font-style: italic;
+    margin-left: 4px;
   }
 </style>

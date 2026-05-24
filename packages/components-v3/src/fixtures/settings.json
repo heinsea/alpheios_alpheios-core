@@ -1,0 +1,130 @@
+{
+  "tabs": [
+    { "value": "ui",        "label": "UI" },
+    { "value": "features",  "label": "Features" },
+    { "value": "resources", "label": "Resources" },
+    { "value": "advanced",  "label": "Advanced" }
+  ],
+  "ui": {
+    "groups": [
+      {
+        "title": "Typography",
+        "rows": [
+          { "id": "fontSize",        "kind": "slider", "label": "Font size",            "help": "Scales every text in the panel.", "min": 0, "max": 100, "value": 40, "unit": "%" },
+          { "id": "classicalFont",   "kind": "select", "label": "Classical text font",  "help": "Used for Latin / Greek / Arabic glyphs.", "value": "Lato" }
+        ]
+      },
+      {
+        "title": "Layout",
+        "rows": [
+          { "id": "panelPosition",   "kind": "segInline", "label": "Panel position",  "help": "Where the drawer anchors when expanded.", "value": "right",
+            "options": [{ "value": "left", "label": "Left" }, { "value": "right", "label": "Right" }] },
+          { "id": "popupMaxWidth",   "kind": "slider",    "label": "Popup max width", "help": "Cap on the floating popup. Range 240–600.", "min": 240, "max": 600, "value": 360, "unit": "" },
+          { "id": "showFab",         "kind": "toggle",    "label": "Show toolbar FAB","help": "Floating button bottom-right when no selection.", "value": true }
+        ]
+      },
+      {
+        "title": "Theme",
+        "rows": [
+          { "id": "scheme",          "kind": "segInline", "label": "Color scheme",      "help": "\"Auto\" follows your system setting.", "value": "light",
+            "options": [{ "value": "auto", "label": "Auto" }, { "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }] },
+          { "id": "hideLogin",       "kind": "toggle",    "label": "Hide login prompt", "help": "Suppress the \"log in to sync\" inline card.", "value": false },
+          { "id": "reduceMotion",    "kind": "segInline", "label": "Reduce motion",     "help": "Auto-detected from <code>prefers-reduced-motion</code>.", "value": "auto",
+            "options": [{ "value": "auto", "label": "Auto" }, { "value": "off", "label": "Off" }] }
+        ]
+      }
+    ]
+  },
+  "features": {
+    "groups": [
+      {
+        "title": "Lookup behavior",
+        "rows": [
+          { "id": "autoLookup",       "kind": "toggle", "label": "Auto-lookup on selection", "help": "Show popup automatically when text is selected.", "value": true },
+          { "id": "doubleClick",      "kind": "toggle", "label": "Lookup on double-click",   "help": "Single word lookup without dragging.",            "value": true },
+          { "id": "collapseShortDef", "kind": "toggle", "label": "Collapse short definitions","help": "Show only first definition in popup; expand on click.", "value": false }
+        ]
+      },
+      {
+        "title": "Modules",
+        "rows": [
+          { "id": "modUsage", "kind": "toggle", "label": "Word usage examples", "help": "Fetch parallel quotes from corpora.",       "value": true },
+          { "id": "modTree",  "kind": "toggle", "label": "Treebank viewer",     "help": "Show dependency trees when available.",     "value": true },
+          { "id": "modSync",  "kind": "toggle", "label": "Word list sync",      "help": "Requires sign-in. Currently logged out.",   "value": false }
+        ]
+      },
+      {
+        "title": "Languages",
+        "desc": "Only enabled languages will be auto-detected on selection.",
+        "rows": [
+          { "id": "lang.lat", "kind": "toggle", "label": "Latin",          "value": true },
+          { "id": "lang.grc", "kind": "toggle", "label": "Ancient Greek",  "value": true },
+          { "id": "lang.ara", "kind": "toggle", "label": "Arabic",         "value": false },
+          { "id": "lang.fas", "kind": "toggle", "label": "Persian",        "value": false }
+        ]
+      }
+    ]
+  },
+  "resources": {
+    "groups": [
+      {
+        "title": "Latin · lexicons",
+        "desc": "Tried in order. Drag to reorder.",
+        "draggable": true,
+        "items": [
+          { "id": "ls",       "name": "Lewis &amp; Short, 1879", "meta": "primary · definitions · morph", "checked": true  },
+          { "id": "whitaker", "name": "Whitaker's WORDS",         "meta": "morph fallback",                "checked": true  },
+          { "id": "wnl",      "name": "Latin Wordnet",            "meta": "semantic relations · experimental", "checked": false }
+        ]
+      },
+      {
+        "title": "Latin · grammars",
+        "items": [
+          { "id": "ag",   "name": "Allen &amp; Greenough",         "meta": "1903 · 642 sections", "checked": true  },
+          { "id": "benn", "name": "Bennett's New Latin Grammar",   "meta": "1908",                "checked": false }
+        ]
+      },
+      {
+        "title": "Ancient Greek · lexicons",
+        "items": [
+          { "id": "lsj",   "name": "LSJ — Liddell-Scott-Jones", "meta": "primary · definitions · morph", "checked": true  },
+          { "id": "midli", "name": "Middle Liddell",             "meta": "abridged · short definitions",  "checked": true  }
+        ]
+      }
+    ],
+    "footerMeta": "2 lexicons · 1 grammar enabled"
+  },
+  "advanced": {
+    "groups": [
+      {
+        "title": "Diagnostics",
+        "rows": [
+          { "id": "logLevel",  "kind": "segInline", "label": "Log level",      "help": "Verbose logs help when filing issues. Stored in <code>localStorage</code>.", "value": "warn",
+            "options": [
+              { "value": "error", "label": "Error" },
+              { "value": "warn",  "label": "Warn" },
+              { "value": "info",  "label": "Info" },
+              { "value": "debug", "label": "Debug" }
+            ] },
+          { "id": "devMode",   "kind": "toggle", "label": "Developer mode",     "help": "Adds <code>?mode=dev</code> options &amp; build info inline.", "value": false },
+          { "id": "showIds",   "kind": "toggle", "label": "Show internal IDs",  "help": "Render lemma IDs / view IDs next to results.",                  "value": false }
+        ]
+      },
+      {
+        "title": "Cache",
+        "desc": "Lexicon results are cached for offline reading.",
+        "rows": [
+          { "id": "cacheSize", "kind": "select", "label": "Cache size", "help": "Across IndexedDB stores.", "value": "12.4 MB · 247 entries", "readOnly": true }
+        ]
+      }
+    ],
+    "danger": { "name": "Clear all cached data", "help": "Word list, history, and lexicon cache. Cannot be undone.", "label": "Clear" },
+    "about": [
+      { "name": "Alpheios extension",       "value": "v3.3.2 · MV3" },
+      { "name": "alpheios-core/components", "value": "v4.x" },
+      { "name": "Build branch",             "value": "main · 2026-05-04" },
+      { "name": "Build name",               "value": "scholarly-glass" }
+    ],
+    "footerMeta": "Service Worker · idle"
+  }
+}

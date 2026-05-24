@@ -1,0 +1,66 @@
+{
+  "matched": {
+    "lemma": "arma",
+    "pos": "noun, 2nd declension",
+    "subhead": "Showing the paradigm for <em class=\"lang-classical\">arma, -ōrum</em>. Current form: <strong>nom./acc./voc. plural</strong>",
+    "wordClass": "noun",
+    "density": "wide",
+    "filterChips": [
+      { "id": "nominal",     "label": "Nominal",     "active": true },
+      { "id": "adjectival",  "label": "Adjectival",  "active": false },
+      { "id": "pronominal",  "label": "Pronominal",  "active": false }
+    ],
+    "highlightMatches": true,
+    "table": {
+      "columns": ["Case", "Singular", "Plural"],
+      "rows": [
+        { "head": "Nominative", "cells": [
+          { "value": "armum",   "lang": true },
+          { "value": "arma",    "lang": true, "match": true, "secondary": "current" }
+        ] },
+        { "head": "Genitive",   "cells": [{ "value": "armī", "lang": true }, { "value": "armōrum", "lang": true }] },
+        { "head": "Dative",     "cells": [{ "value": "armō", "lang": true }, { "value": "armīs", "lang": true }] },
+        { "head": "Accusative", "cells": [{ "value": "armum", "lang": true }, { "value": "arma", "lang": true, "match": true }] },
+        { "head": "Ablative",   "cells": [{ "value": "armō", "lang": true }, { "value": "armīs", "lang": true }] },
+        { "head": "Vocative",   "cells": [{ "value": "armum", "lang": true }, { "value": "arma", "lang": true, "match": true }] }
+      ],
+      "tfoot": "¹ Stem -ar; gender neuter; only attested in plural in classical authors."
+    },
+    "footnotes": [
+      "<em class=\"lang-classical\">arma</em> is overwhelmingly attested as a <em>plurale tantum</em> in poetry (Verg., Ov.).",
+      "The singular forms are reconstructed; cf. Lewis &amp; Short s.v."
+    ],
+    "credits": "Latin paradigms via the <em>Alpheios Latin Inflection Tables</em>, derived from Allen &amp; Greenough (1903).",
+    "footerMeta": "arma · 6 cases · 2 numbers"
+  },
+  "browser": {
+    "language": "Latin",
+    "languages": ["Latin", "Ancient Greek", "Arabic", "Persian", "Sanskrit", "Old English"],
+    "pos": "Verb",
+    "posOptions": ["Noun", "Verb", "Adjective", "Pronoun", "Adverb"],
+    "paradigm": "1st conjugation — amō",
+    "paradigmOptions": [
+      "1st conjugation — amō",
+      "2nd — moneō",
+      "3rd — regō",
+      "3rd-iō — capiō",
+      "4th — audiō",
+      "Sum, esse"
+    ],
+    "paradigmMeta": "Showing active indicative forms by default. Toggle voices &amp; moods in the table.",
+    "voice": "Active",
+    "mood": "Indicative",
+    "preview": {
+      "columns": ["Person", "Present", "Imperfect", "Future"],
+      "rows": [
+        { "head": "1 sg.", "cells": [{ "value": "amō",     "lang": true }, { "value": "amābam",   "lang": true }, { "value": "amābō",   "lang": true }] },
+        { "head": "2 sg.", "cells": [{ "value": "amās",    "lang": true }, { "value": "amābās",   "lang": true }, { "value": "amābis",  "lang": true }] },
+        { "head": "3 sg.", "cells": [{ "value": "amat",    "lang": true }, { "value": "amābat",   "lang": true }, { "value": "amābit",  "lang": true }] },
+        { "head": "1 pl.", "cells": [{ "value": "amāmus",  "lang": true }, { "value": "amābāmus", "lang": true }, { "value": "amābimus","lang": true }] },
+        { "head": "2 pl.", "cells": [{ "value": "amātis",  "lang": true }, { "value": "amābātis", "lang": true }, { "value": "amābitis","lang": true }] },
+        { "head": "3 pl.", "cells": [{ "value": "amant",   "lang": true }, { "value": "amābant",  "lang": true }, { "value": "amābunt", "lang": true }] }
+      ]
+    },
+    "footerMeta": "amō · 1st conj. · active · indicative"
+  }
+}

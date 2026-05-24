@@ -7,25 +7,25 @@
 		var a = typeof exports === 'object' ? factory(require("alpheios-data-models")) : factory(root["alpheios-data-models"]);
 		for(var i in a) (typeof exports === 'object' ? exports : root)[i] = a[i];
 	}
-})(self, function(__WEBPACK_EXTERNAL_MODULE_alpheios_data_models__) {
+})(self, (__WEBPACK_EXTERNAL_MODULE_alpheios_data_models__) => {
 return /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ "../../../node_modules/axios/index.js":
+/***/ "../../../node_modules/axios/index.js"
 /*!********************************************!*\
   !*** ../../../node_modules/axios/index.js ***!
   \********************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 module.exports = __webpack_require__(/*! ./lib/axios */ "../../../node_modules/axios/lib/axios.js");
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/adapters/xhr.js":
+/***/ "../../../node_modules/axios/lib/adapters/xhr.js"
 /*!*******************************************************!*\
   !*** ../../../node_modules/axios/lib/adapters/xhr.js ***!
   \*******************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -43,6 +43,7 @@ module.exports = function xhrAdapter(config) {
   return new Promise(function dispatchXhrRequest(resolve, reject) {
     var requestData = config.data;
     var requestHeaders = config.headers;
+    var responseType = config.responseType;
 
     if (utils.isFormData(requestData)) {
       delete requestHeaders['Content-Type']; // Let the browser set it
@@ -63,23 +64,14 @@ module.exports = function xhrAdapter(config) {
     // Set the request timeout in MS
     request.timeout = config.timeout;
 
-    // Listen for ready state
-    request.onreadystatechange = function handleLoad() {
-      if (!request || request.readyState !== 4) {
+    function onloadend() {
+      if (!request) {
         return;
       }
-
-      // The request errored out and we didn't get a response, this will be
-      // handled by onerror instead
-      // With one exception: request that using file: protocol, most browsers
-      // will return status as 0 even though it's a successful request
-      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-        return;
-      }
-
       // Prepare the response
       var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
-      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      var responseData = !responseType || responseType === 'text' ||  responseType === 'json' ?
+        request.responseText : request.response;
       var response = {
         data: responseData,
         status: request.status,
@@ -93,7 +85,30 @@ module.exports = function xhrAdapter(config) {
 
       // Clean up request
       request = null;
-    };
+    }
+
+    if ('onloadend' in request) {
+      // Use onloadend if available
+      request.onloadend = onloadend;
+    } else {
+      // Listen for ready state to emulate onloadend
+      request.onreadystatechange = function handleLoad() {
+        if (!request || request.readyState !== 4) {
+          return;
+        }
+
+        // The request errored out and we didn't get a response, this will be
+        // handled by onerror instead
+        // With one exception: request that using file: protocol, most browsers
+        // will return status as 0 even though it's a successful request
+        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+          return;
+        }
+        // readystate handler is calling before onerror or ontimeout handlers,
+        // so we should call onloadend on the next 'tick'
+        setTimeout(onloadend);
+      };
+    }
 
     // Handle browser request cancellation (as opposed to a manual cancellation)
     request.onabort = function handleAbort() {
@@ -123,7 +138,10 @@ module.exports = function xhrAdapter(config) {
       if (config.timeoutErrorMessage) {
         timeoutErrorMessage = config.timeoutErrorMessage;
       }
-      reject(createError(timeoutErrorMessage, config, 'ECONNABORTED',
+      reject(createError(
+        timeoutErrorMessage,
+        config,
+        config.transitional && config.transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
         request));
 
       // Clean up request
@@ -163,16 +181,8 @@ module.exports = function xhrAdapter(config) {
     }
 
     // Add responseType to request if needed
-    if (config.responseType) {
-      try {
-        request.responseType = config.responseType;
-      } catch (e) {
-        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
-        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
-        if (config.responseType !== 'json') {
-          throw e;
-        }
-      }
+    if (responseType && responseType !== 'json') {
+      request.responseType = config.responseType;
     }
 
     // Handle progress if needed
@@ -209,13 +219,13 @@ module.exports = function xhrAdapter(config) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/axios.js":
+/***/ "../../../node_modules/axios/lib/axios.js"
 /*!************************************************!*\
   !*** ../../../node_modules/axios/lib/axios.js ***!
   \************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -273,16 +283,16 @@ axios.isAxiosError = __webpack_require__(/*! ./helpers/isAxiosError */ "../../..
 module.exports = axios;
 
 // Allow use of default import syntax in TypeScript
-module.exports.default = axios;
+module.exports["default"] = axios;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/cancel/Cancel.js":
+/***/ "../../../node_modules/axios/lib/cancel/Cancel.js"
 /*!********************************************************!*\
   !*** ../../../node_modules/axios/lib/cancel/Cancel.js ***!
   \********************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -306,13 +316,13 @@ Cancel.prototype.__CANCEL__ = true;
 module.exports = Cancel;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/cancel/CancelToken.js":
+/***/ "../../../node_modules/axios/lib/cancel/CancelToken.js"
 /*!*************************************************************!*\
   !*** ../../../node_modules/axios/lib/cancel/CancelToken.js ***!
   \*************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -374,13 +384,13 @@ CancelToken.source = function source() {
 module.exports = CancelToken;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/cancel/isCancel.js":
+/***/ "../../../node_modules/axios/lib/cancel/isCancel.js"
 /*!**********************************************************!*\
   !*** ../../../node_modules/axios/lib/cancel/isCancel.js ***!
   \**********************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -390,13 +400,13 @@ module.exports = function isCancel(value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/Axios.js":
+/***/ "../../../node_modules/axios/lib/core/Axios.js"
 /*!*****************************************************!*\
   !*** ../../../node_modules/axios/lib/core/Axios.js ***!
   \*****************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -406,7 +416,9 @@ var buildURL = __webpack_require__(/*! ../helpers/buildURL */ "../../../node_mod
 var InterceptorManager = __webpack_require__(/*! ./InterceptorManager */ "../../../node_modules/axios/lib/core/InterceptorManager.js");
 var dispatchRequest = __webpack_require__(/*! ./dispatchRequest */ "../../../node_modules/axios/lib/core/dispatchRequest.js");
 var mergeConfig = __webpack_require__(/*! ./mergeConfig */ "../../../node_modules/axios/lib/core/mergeConfig.js");
+var validator = __webpack_require__(/*! ../helpers/validator */ "../../../node_modules/axios/lib/helpers/validator.js");
 
+var validators = validator.validators;
 /**
  * Create a new instance of Axios
  *
@@ -446,20 +458,71 @@ Axios.prototype.request = function request(config) {
     config.method = 'get';
   }
 
-  // Hook up interceptors middleware
-  var chain = [dispatchRequest, undefined];
-  var promise = Promise.resolve(config);
+  var transitional = config.transitional;
 
+  if (transitional !== undefined) {
+    validator.assertOptions(transitional, {
+      silentJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      forcedJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      clarifyTimeoutError: validators.transitional(validators.boolean, '1.0.0')
+    }, false);
+  }
+
+  // filter out skipped interceptors
+  var requestInterceptorChain = [];
+  var synchronousRequestInterceptors = true;
   this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
-    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+    if (typeof interceptor.runWhen === 'function' && interceptor.runWhen(config) === false) {
+      return;
+    }
+
+    synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
+
+    requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
 
+  var responseInterceptorChain = [];
   this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
-    chain.push(interceptor.fulfilled, interceptor.rejected);
+    responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
   });
 
-  while (chain.length) {
-    promise = promise.then(chain.shift(), chain.shift());
+  var promise;
+
+  if (!synchronousRequestInterceptors) {
+    var chain = [dispatchRequest, undefined];
+
+    Array.prototype.unshift.apply(chain, requestInterceptorChain);
+    chain = chain.concat(responseInterceptorChain);
+
+    promise = Promise.resolve(config);
+    while (chain.length) {
+      promise = promise.then(chain.shift(), chain.shift());
+    }
+
+    return promise;
+  }
+
+
+  var newConfig = config;
+  while (requestInterceptorChain.length) {
+    var onFulfilled = requestInterceptorChain.shift();
+    var onRejected = requestInterceptorChain.shift();
+    try {
+      newConfig = onFulfilled(newConfig);
+    } catch (error) {
+      onRejected(error);
+      break;
+    }
+  }
+
+  try {
+    promise = dispatchRequest(newConfig);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  while (responseInterceptorChain.length) {
+    promise = promise.then(responseInterceptorChain.shift(), responseInterceptorChain.shift());
   }
 
   return promise;
@@ -496,13 +559,13 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 module.exports = Axios;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/InterceptorManager.js":
+/***/ "../../../node_modules/axios/lib/core/InterceptorManager.js"
 /*!******************************************************************!*\
   !*** ../../../node_modules/axios/lib/core/InterceptorManager.js ***!
   \******************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -521,10 +584,12 @@ function InterceptorManager() {
  *
  * @return {Number} An ID used to remove interceptor later
  */
-InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+InterceptorManager.prototype.use = function use(fulfilled, rejected, options) {
   this.handlers.push({
     fulfilled: fulfilled,
-    rejected: rejected
+    rejected: rejected,
+    synchronous: options ? options.synchronous : false,
+    runWhen: options ? options.runWhen : null
   });
   return this.handlers.length - 1;
 };
@@ -559,13 +624,13 @@ InterceptorManager.prototype.forEach = function forEach(fn) {
 module.exports = InterceptorManager;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/buildFullPath.js":
+/***/ "../../../node_modules/axios/lib/core/buildFullPath.js"
 /*!*************************************************************!*\
   !*** ../../../node_modules/axios/lib/core/buildFullPath.js ***!
   \*************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -590,13 +655,13 @@ module.exports = function buildFullPath(baseURL, requestedURL) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/createError.js":
+/***/ "../../../node_modules/axios/lib/core/createError.js"
 /*!***********************************************************!*\
   !*** ../../../node_modules/axios/lib/core/createError.js ***!
   \***********************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -619,13 +684,13 @@ module.exports = function createError(message, config, code, request, response) 
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/dispatchRequest.js":
+/***/ "../../../node_modules/axios/lib/core/dispatchRequest.js"
 /*!***************************************************************!*\
   !*** ../../../node_modules/axios/lib/core/dispatchRequest.js ***!
   \***************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -657,7 +722,8 @@ module.exports = function dispatchRequest(config) {
   config.headers = config.headers || {};
 
   // Transform request data
-  config.data = transformData(
+  config.data = transformData.call(
+    config,
     config.data,
     config.headers,
     config.transformRequest
@@ -683,7 +749,8 @@ module.exports = function dispatchRequest(config) {
     throwIfCancellationRequested(config);
 
     // Transform response data
-    response.data = transformData(
+    response.data = transformData.call(
+      config,
       response.data,
       response.headers,
       config.transformResponse
@@ -696,7 +763,8 @@ module.exports = function dispatchRequest(config) {
 
       // Transform response data
       if (reason && reason.response) {
-        reason.response.data = transformData(
+        reason.response.data = transformData.call(
+          config,
           reason.response.data,
           reason.response.headers,
           config.transformResponse
@@ -709,13 +777,13 @@ module.exports = function dispatchRequest(config) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/enhanceError.js":
+/***/ "../../../node_modules/axios/lib/core/enhanceError.js"
 /*!************************************************************!*\
   !*** ../../../node_modules/axios/lib/core/enhanceError.js ***!
   \************************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -762,13 +830,13 @@ module.exports = function enhanceError(error, config, code, request, response) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/mergeConfig.js":
+/***/ "../../../node_modules/axios/lib/core/mergeConfig.js"
 /*!***********************************************************!*\
   !*** ../../../node_modules/axios/lib/core/mergeConfig.js ***!
   \***********************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -860,13 +928,13 @@ module.exports = function mergeConfig(config1, config2) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/settle.js":
+/***/ "../../../node_modules/axios/lib/core/settle.js"
 /*!******************************************************!*\
   !*** ../../../node_modules/axios/lib/core/settle.js ***!
   \******************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -896,18 +964,19 @@ module.exports = function settle(resolve, reject, response) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/core/transformData.js":
+/***/ "../../../node_modules/axios/lib/core/transformData.js"
 /*!*************************************************************!*\
   !*** ../../../node_modules/axios/lib/core/transformData.js ***!
   \*************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
 
 var utils = __webpack_require__(/*! ./../utils */ "../../../node_modules/axios/lib/utils.js");
+var defaults = __webpack_require__(/*! ./../defaults */ "../../../node_modules/axios/lib/defaults.js");
 
 /**
  * Transform the data for a request or a response
@@ -918,28 +987,30 @@ var utils = __webpack_require__(/*! ./../utils */ "../../../node_modules/axios/l
  * @returns {*} The resulting transformed data
  */
 module.exports = function transformData(data, headers, fns) {
+  var context = this || defaults;
   /*eslint no-param-reassign:0*/
   utils.forEach(fns, function transform(fn) {
-    data = fn(data, headers);
+    data = fn.call(context, data, headers);
   });
 
   return data;
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/defaults.js":
+/***/ "../../../node_modules/axios/lib/defaults.js"
 /*!***************************************************!*\
   !*** ../../../node_modules/axios/lib/defaults.js ***!
   \***************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
 
 var utils = __webpack_require__(/*! ./utils */ "../../../node_modules/axios/lib/utils.js");
 var normalizeHeaderName = __webpack_require__(/*! ./helpers/normalizeHeaderName */ "../../../node_modules/axios/lib/helpers/normalizeHeaderName.js");
+var enhanceError = __webpack_require__(/*! ./core/enhanceError */ "../../../node_modules/axios/lib/core/enhanceError.js");
 
 var DEFAULT_CONTENT_TYPE = {
   'Content-Type': 'application/x-www-form-urlencoded'
@@ -963,12 +1034,35 @@ function getDefaultAdapter() {
   return adapter;
 }
 
+function stringifySafely(rawValue, parser, encoder) {
+  if (utils.isString(rawValue)) {
+    try {
+      (parser || JSON.parse)(rawValue);
+      return utils.trim(rawValue);
+    } catch (e) {
+      if (e.name !== 'SyntaxError') {
+        throw e;
+      }
+    }
+  }
+
+  return (encoder || JSON.stringify)(rawValue);
+}
+
 var defaults = {
+
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+
   adapter: getDefaultAdapter(),
 
   transformRequest: [function transformRequest(data, headers) {
     normalizeHeaderName(headers, 'Accept');
     normalizeHeaderName(headers, 'Content-Type');
+
     if (utils.isFormData(data) ||
       utils.isArrayBuffer(data) ||
       utils.isBuffer(data) ||
@@ -985,20 +1079,32 @@ var defaults = {
       setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
       return data.toString();
     }
-    if (utils.isObject(data)) {
-      setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
-      return JSON.stringify(data);
+    if (utils.isObject(data) || (headers && headers['Content-Type'] === 'application/json')) {
+      setContentTypeIfUnset(headers, 'application/json');
+      return stringifySafely(data);
     }
     return data;
   }],
 
   transformResponse: [function transformResponse(data) {
-    /*eslint no-param-reassign:0*/
-    if (typeof data === 'string') {
+    var transitional = this.transitional;
+    var silentJSONParsing = transitional && transitional.silentJSONParsing;
+    var forcedJSONParsing = transitional && transitional.forcedJSONParsing;
+    var strictJSONParsing = !silentJSONParsing && this.responseType === 'json';
+
+    if (strictJSONParsing || (forcedJSONParsing && utils.isString(data) && data.length)) {
       try {
-        data = JSON.parse(data);
-      } catch (e) { /* Ignore */ }
+        return JSON.parse(data);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === 'SyntaxError') {
+            throw enhanceError(e, this, 'E_JSON_PARSE');
+          }
+          throw e;
+        }
+      }
     }
+
     return data;
   }],
 
@@ -1036,13 +1142,13 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 module.exports = defaults;
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/bind.js":
+/***/ "../../../node_modules/axios/lib/helpers/bind.js"
 /*!*******************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/bind.js ***!
   \*******************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -1058,13 +1164,13 @@ module.exports = function bind(fn, thisArg) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/buildURL.js":
+/***/ "../../../node_modules/axios/lib/helpers/buildURL.js"
 /*!***********************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/buildURL.js ***!
   \***********************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -1139,13 +1245,13 @@ module.exports = function buildURL(url, params, paramsSerializer) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/combineURLs.js":
+/***/ "../../../node_modules/axios/lib/helpers/combineURLs.js"
 /*!**************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/combineURLs.js ***!
   \**************************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -1164,13 +1270,13 @@ module.exports = function combineURLs(baseURL, relativeURL) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/cookies.js":
+/***/ "../../../node_modules/axios/lib/helpers/cookies.js"
 /*!**********************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/cookies.js ***!
   \**********************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -1228,13 +1334,13 @@ module.exports = (
 );
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/isAbsoluteURL.js":
+/***/ "../../../node_modules/axios/lib/helpers/isAbsoluteURL.js"
 /*!****************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/isAbsoluteURL.js ***!
   \****************************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -1253,13 +1359,13 @@ module.exports = function isAbsoluteURL(url) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/isAxiosError.js":
+/***/ "../../../node_modules/axios/lib/helpers/isAxiosError.js"
 /*!***************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/isAxiosError.js ***!
   \***************************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -1275,13 +1381,13 @@ module.exports = function isAxiosError(payload) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/isURLSameOrigin.js":
+/***/ "../../../node_modules/axios/lib/helpers/isURLSameOrigin.js"
 /*!******************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/isURLSameOrigin.js ***!
   \******************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -1354,13 +1460,13 @@ module.exports = (
 );
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/normalizeHeaderName.js":
+/***/ "../../../node_modules/axios/lib/helpers/normalizeHeaderName.js"
 /*!**********************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/normalizeHeaderName.js ***!
   \**********************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -1377,13 +1483,13 @@ module.exports = function normalizeHeaderName(headers, normalizedName) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/parseHeaders.js":
+/***/ "../../../node_modules/axios/lib/helpers/parseHeaders.js"
 /*!***************************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/parseHeaders.js ***!
   \***************************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
@@ -1441,13 +1547,13 @@ module.exports = function parseHeaders(headers) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/helpers/spread.js":
+/***/ "../../../node_modules/axios/lib/helpers/spread.js"
 /*!*********************************************************!*\
   !*** ../../../node_modules/axios/lib/helpers/spread.js ***!
   \*********************************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 
@@ -1479,20 +1585,134 @@ module.exports = function spread(callback) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "../../../node_modules/axios/lib/utils.js":
+/***/ "../../../node_modules/axios/lib/helpers/validator.js"
+/*!************************************************************!*\
+  !*** ../../../node_modules/axios/lib/helpers/validator.js ***!
+  \************************************************************/
+(module, __unused_webpack_exports, __webpack_require__) {
+
+"use strict";
+
+
+var pkg = __webpack_require__(/*! ./../../package.json */ "../../../node_modules/axios/package.json");
+
+var validators = {};
+
+// eslint-disable-next-line func-names
+['object', 'boolean', 'number', 'function', 'string', 'symbol'].forEach(function(type, i) {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || 'a' + (i < 1 ? 'n ' : ' ') + type;
+  };
+});
+
+var deprecatedWarnings = {};
+var currentVerArr = pkg.version.split('.');
+
+/**
+ * Compare package versions
+ * @param {string} version
+ * @param {string?} thanVersion
+ * @returns {boolean}
+ */
+function isOlderVersion(version, thanVersion) {
+  var pkgVersionArr = thanVersion ? thanVersion.split('.') : currentVerArr;
+  var destVer = version.split('.');
+  for (var i = 0; i < 3; i++) {
+    if (pkgVersionArr[i] > destVer[i]) {
+      return true;
+    } else if (pkgVersionArr[i] < destVer[i]) {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Transitional option validator
+ * @param {function|boolean?} validator
+ * @param {string?} version
+ * @param {string} message
+ * @returns {function}
+ */
+validators.transitional = function transitional(validator, version, message) {
+  var isDeprecated = version && isOlderVersion(version);
+
+  function formatMessage(opt, desc) {
+    return '[Axios v' + pkg.version + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+  }
+
+  // eslint-disable-next-line func-names
+  return function(value, opt, opts) {
+    if (validator === false) {
+      throw new Error(formatMessage(opt, ' has been removed in ' + version));
+    }
+
+    if (isDeprecated && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      // eslint-disable-next-line no-console
+      console.warn(
+        formatMessage(
+          opt,
+          ' has been deprecated since v' + version + ' and will be removed in the near future'
+        )
+      );
+    }
+
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+
+/**
+ * Assert object's properties type
+ * @param {object} options
+ * @param {object} schema
+ * @param {boolean?} allowUnknown
+ */
+
+function assertOptions(options, schema, allowUnknown) {
+  if (typeof options !== 'object') {
+    throw new TypeError('options must be an object');
+  }
+  var keys = Object.keys(options);
+  var i = keys.length;
+  while (i-- > 0) {
+    var opt = keys[i];
+    var validator = schema[opt];
+    if (validator) {
+      var value = options[opt];
+      var result = value === undefined || validator(value, opt, options);
+      if (result !== true) {
+        throw new TypeError('option ' + opt + ' must be ' + result);
+      }
+      continue;
+    }
+    if (allowUnknown !== true) {
+      throw Error('Unknown option ' + opt);
+    }
+  }
+}
+
+module.exports = {
+  isOlderVersion: isOlderVersion,
+  assertOptions: assertOptions,
+  validators: validators
+};
+
+
+/***/ },
+
+/***/ "../../../node_modules/axios/lib/utils.js"
 /*!************************************************!*\
   !*** ../../../node_modules/axios/lib/utils.js ***!
   \************************************************/
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+(module, __unused_webpack_exports, __webpack_require__) {
 
 "use strict";
 
 
 var bind = __webpack_require__(/*! ./helpers/bind */ "../../../node_modules/axios/lib/helpers/bind.js");
-
-/*global toString:true*/
 
 // utils is a library of generic helper functions non-specific to axios
 
@@ -1677,7 +1897,7 @@ function isURLSearchParams(val) {
  * @returns {String} The String freed of excess whitespace
  */
 function trim(str) {
-  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+  return str.trim ? str.trim() : str.replace(/^\s+|\s+$/g, '');
 }
 
 /**
@@ -1841,13 +2061,13 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ "./common/utility.js":
+/***/ "./common/utility.js"
 /*!***************************!*\
   !*** ./common/utility.js ***!
   \***************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -1872,13 +2092,13 @@ class Utility {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./controllers/user-data-manager.js":
+/***/ "./controllers/user-data-manager.js"
 /*!******************************************!*\
   !*** ./controllers/user-data-manager.js ***!
   \******************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -1939,7 +2159,7 @@ class UserDataManager {
    */
   _localStorageAdapter(dataType) {
     let dbDriver = new UserDataManager.LOCAL_DRIVER_CLASSES[dataType](this.auth.userId)
-    return new _wordlist_storage_indexed_db_adapter_js__WEBPACK_IMPORTED_MODULE_3__.default(dbDriver)
+    return new _wordlist_storage_indexed_db_adapter_js__WEBPACK_IMPORTED_MODULE_3__["default"](dbDriver)
   }
 
   /**
@@ -1949,7 +2169,7 @@ class UserDataManager {
    */
   _remoteStorageAdapter(dataType) {
     let dbDriver = new UserDataManager.REMOTE_DRIVER_CLASSES[dataType](this.auth)
-    return new _wordlist_storage_remote_db_adapter_js__WEBPACK_IMPORTED_MODULE_4__.default(dbDriver)
+    return new _wordlist_storage_remote_db_adapter_js__WEBPACK_IMPORTED_MODULE_4__["default"](dbDriver)
   }
 
   /**
@@ -2251,20 +2471,20 @@ class UserDataManager {
 
 // Constants (could be done better, dynamically, etc.)
 UserDataManager.LOCAL_DRIVER_CLASSES = {
-  WordItem: _wordlist_storage_worditem_indexeddb_driver_js__WEBPACK_IMPORTED_MODULE_1__.default
+  WordItem: _wordlist_storage_worditem_indexeddb_driver_js__WEBPACK_IMPORTED_MODULE_1__["default"]
 }
 UserDataManager.REMOTE_DRIVER_CLASSES = {
-  WordItem: _wordlist_storage_worditem_remotedb_driver_js__WEBPACK_IMPORTED_MODULE_2__.default
+  WordItem: _wordlist_storage_worditem_remotedb_driver_js__WEBPACK_IMPORTED_MODULE_2__["default"]
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./controllers/wordlist-controller.js":
+/***/ "./controllers/wordlist-controller.js"
 /*!********************************************!*\
   !*** ./controllers/wordlist-controller.js ***!
   \********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -2407,7 +2627,7 @@ class WordlistController {
     if (wordList) {
       wordItem = wordList.getWordItem(targetWord, create, WordlistController.evt.WORDITEM_UPDATED)
       if (create) {
-        wordItem.createdDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+        wordItem.createdDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       }
     }
     if (!wordItem) {
@@ -2427,7 +2647,7 @@ class WordlistController {
     let wordItem = this.getWordListItem(alpheios_data_models__WEBPACK_IMPORTED_MODULE_0__.LanguageModelFactory.getLanguageCodeFromId(data.languageID), data.targetWord, true)
     wordItem.homonym = data
     wordItem.currentSession = true
-    wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+    wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
     wordItem.frequency = wordItem.frequency ? wordItem.frequency + 1 : 1
     WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'common'}})
     WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'shortHomonym'}})
@@ -2460,7 +2680,7 @@ class WordlistController {
     let wordItem = this.getWordListItem(alpheios_data_models__WEBPACK_IMPORTED_MODULE_0__.LanguageModelFactory.getLanguageCodeFromId(data.homonym.languageID),data.homonym.targetWord)
     if (wordItem) {
       wordItem.currentSession = true
-      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       wordItem.homonym = data.homonym
       WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'fullHomonym'}})
     } else {
@@ -2495,7 +2715,7 @@ class WordlistController {
     let wordItem = this.getWordListItem(alpheios_data_models__WEBPACK_IMPORTED_MODULE_0__.LanguageModelFactory.getLanguageCodeFromId(data.languageID), data.targetWord)
     if (wordItem) {
       wordItem.currentSession = true
-      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       wordItem.homonym = data
       WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'fullHomonym'}})
     } else {
@@ -2530,7 +2750,7 @@ class WordlistController {
     let wordItem = this.getWordListItem(data.languageCode, data.normalizedText, true)
     if (wordItem) {
       wordItem.currentSession = true
-      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       wordItem.addContext([data])
       WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'context'}})
       // emit a wordlist updated event too in case the wordlist was updated
@@ -2552,7 +2772,7 @@ class WordlistController {
     let wordItem = this.getWordListItem(languageCode, targetWord,false)
     if (wordItem) {
       wordItem.important = important
-      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'common'}})
     } else {
       alpheios_data_models__WEBPACK_IMPORTED_MODULE_0__.Logger.getInstance().error("Alpheios error: unexpected error updating user word list: request to set important flag on non-existent item")
@@ -2569,7 +2789,7 @@ class WordlistController {
     let wordList = this.getWordList(languageCode, false)
     wordList.values.forEach(wordItem => {
       wordItem.important = important
-      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      wordItem.updatedDT = _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
       WordlistController.evt.WORDITEM_UPDATED.pub({dataObj: wordItem, params: {segment: 'common'}})
     })
   }
@@ -2651,35 +2871,13 @@ WordlistController.evt = {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./index.js":
-/*!******************!*\
-  !*** ./index.js ***!
-  \******************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "WordlistController": () => (/* reexport safe */ _wordlist_controllers_wordlist_controller_js__WEBPACK_IMPORTED_MODULE_0__.default),
-/* harmony export */   "UserDataManager": () => (/* reexport safe */ _wordlist_controllers_user_data_manager_js__WEBPACK_IMPORTED_MODULE_1__.default)
-/* harmony export */ });
-/* harmony import */ var _wordlist_controllers_wordlist_controller_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordlist/controllers/wordlist-controller.js */ "./controllers/wordlist-controller.js");
-/* harmony import */ var _wordlist_controllers_user_data_manager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordlist/controllers/user-data-manager.js */ "./controllers/user-data-manager.js");
-
-
-
-
-
-
-/***/ }),
-
-/***/ "./storage/indexed-db-adapter.js":
+/***/ "./storage/indexed-db-adapter.js"
 /*!***************************************!*\
   !*** ./storage/indexed-db-adapter.js ***!
   \***************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -3137,13 +3335,13 @@ class IndexedDBAdapter {
 
 }
 
-/***/ }),
+/***/ },
 
-/***/ "./storage/indexeddbDriver/indexed-db-load-process.js":
+/***/ "./storage/indexeddbDriver/indexed-db-load-process.js"
 /*!************************************************************!*\
   !*** ./storage/indexeddbDriver/indexed-db-load-process.js ***!
   \************************************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -3215,13 +3413,13 @@ class IndexedDBLoadProcess {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./storage/indexeddbDriver/indexed-db-object-stores-structure.js":
+/***/ "./storage/indexeddbDriver/indexed-db-object-stores-structure.js"
 /*!***********************************************************************!*\
   !*** ./storage/indexeddbDriver/indexed-db-object-stores-structure.js ***!
   \***********************************************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -3285,13 +3483,13 @@ class IndexedDBObjectStoresStructure {
 
 }
 
-/***/ }),
+/***/ },
 
-/***/ "./storage/remote-db-adapter.js":
+/***/ "./storage/remote-db-adapter.js"
 /*!**************************************!*\
   !*** ./storage/remote-db-adapter.js ***!
   \**************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -3421,7 +3619,7 @@ class RemoteDBAdapter {
   async deleteOne(data) {
     try {
       let url = this.dbDriver.storageMap.deleteOne.url(data)
-      let result = await axios__WEBPACK_IMPORTED_MODULE_0___default().delete(url, this.dbDriver.requestsParams)
+      let result = await axios__WEBPACK_IMPORTED_MODULE_0___default()["delete"](url, this.dbDriver.requestsParams)
       let updated = this.dbDriver.storageMap.deleteOne.checkResult(result)
       return updated
     } catch (error) {
@@ -3442,7 +3640,7 @@ class RemoteDBAdapter {
     try {
       let url = this.dbDriver.storageMap.deleteMany.url(data)
 
-      let result = await axios__WEBPACK_IMPORTED_MODULE_0___default().delete(url, this.dbDriver.requestsParams)
+      let result = await axios__WEBPACK_IMPORTED_MODULE_0___default()["delete"](url, this.dbDriver.requestsParams)
       let updated = this.dbDriver.storageMap.deleteMany.checkResult(result)
       return updated
     } catch (error) {
@@ -3483,13 +3681,13 @@ class RemoteDBAdapter {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./storage/worditem-indexeddb-driver.js":
+/***/ "./storage/worditem-indexeddb-driver.js"
 /*!**********************************************!*\
   !*** ./storage/worditem-indexeddb-driver.js ***!
   \**********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -3522,9 +3720,9 @@ class WordItemIndexedDbDriver {
         sync: true,
         objectStoreData: {
           name: 'WordListsCommon',
-          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__.default.WordListsCommon
+          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__["default"].WordListsCommon
         },
-        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__.default.loadBaseObject,
+        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__["default"].loadBaseObject,
         serialize: this._serializeCommon.bind(this),
         delete: this._segmentSelectQueryByID.bind(this),
         select: this._segmentSelectQueryByID.bind(this)
@@ -3534,10 +3732,10 @@ class WordItemIndexedDbDriver {
         sync: true,
         objectStoreData: {
           name: 'WordListsContext',
-          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__.default.WordListsContext
+          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__["default"].WordListsContext
         },
         serialize: this._serializeContext.bind(this),
-        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__.default.loadContext,
+        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__["default"].loadContext,
         delete: this._segmentSelectQueryByWordItemID.bind(this),
         select: this._segmentSelectQueryByWordItemID.bind(this)
       },
@@ -3546,10 +3744,10 @@ class WordItemIndexedDbDriver {
         sync: true,
         objectStoreData: {
           name: 'WordListsHomonym',
-          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__.default.WordListsHomonym
+          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__["default"].WordListsHomonym
         },
         serialize: this._serializeHomonym.bind(this),
-        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__.default.loadHomonym,
+        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__["default"].loadHomonym,
         delete: this._segmentSelectQueryByID.bind(this),
         select: this._segmentSelectQueryByID.bind(this)
       },
@@ -3557,10 +3755,10 @@ class WordItemIndexedDbDriver {
         type: 'segment',
         objectStoreData: {
           name: 'WordListsFullHomonym',
-          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__.default.WordListsFullHomonym
+          structure: _wordlist_storage_indexeddbDriver_indexed_db_object_stores_structure__WEBPACK_IMPORTED_MODULE_1__["default"].WordListsFullHomonym
         },
         serialize: this._serializeHomonymWithFullDefs.bind(this),
-        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__.default.loadHomonym,
+        load: _wordlist_storage_indexeddbDriver_indexed_db_load_process__WEBPACK_IMPORTED_MODULE_2__["default"].loadHomonym,
         delete: this._segmentSelectQueryByID.bind(this),
         select: this._segmentSelectQueryByID.bind(this)
       }
@@ -3813,7 +4011,7 @@ class WordItemIndexedDbDriver {
       languageCode: wordItem.languageCode,
       targetWord: wordItem.targetWord,
       important: wordItem.important,
-      createdDT: wordItem.createdDT ? wordItem.createdDT : _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_3__.default.currentDate,
+      createdDT: wordItem.createdDT ? wordItem.createdDT : _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_3__["default"].currentDate,
       updatedDT: wordItem.updatedDT,
       frequency: wordItem.frequency
     }]
@@ -3944,13 +4142,13 @@ _serializeHomonymWithFullDefs (wordItem) {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "./storage/worditem-remotedb-driver.js":
+/***/ "./storage/worditem-remotedb-driver.js"
 /*!*********************************************!*\
   !*** ./storage/worditem-remotedb-driver.js ***!
   \*********************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
@@ -4132,7 +4330,7 @@ class WordItemRemoteDbDriver {
       languageCode: wordItem.languageCode,
       targetWord: wordItem.targetWord,
       important: wordItem.important,
-      createdDT: wordItem.createdDT ? wordItem.createdDT : _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate,
+      createdDT: wordItem.createdDT ? wordItem.createdDT : _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate,
       updatedDT: wordItem.updatedDT,
       frequency: wordItem.frequency
     }
@@ -4207,7 +4405,7 @@ class WordItemRemoteDbDriver {
       },
       languageCode: wordItem.languageCode,
       targetWord: wordItem.targetWord,
-      createdDT: _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__.default.currentDate
+      createdDT: _wordlist_common_utility_js__WEBPACK_IMPORTED_MODULE_1__["default"].currentDate
     }
   }
 
@@ -4270,18 +4468,29 @@ class WordItemRemoteDbDriver {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ "alpheios-data-models":
+/***/ "alpheios-data-models"
 /*!***************************************!*\
   !*** external "alpheios-data-models" ***!
   \***************************************/
-/***/ ((module) => {
+(module) {
 
 "use strict";
 module.exports = __WEBPACK_EXTERNAL_MODULE_alpheios_data_models__;
 
-/***/ })
+/***/ },
+
+/***/ "../../../node_modules/axios/package.json"
+/*!************************************************!*\
+  !*** ../../../node_modules/axios/package.json ***!
+  \************************************************/
+(module) {
+
+"use strict";
+module.exports = /*#__PURE__*/JSON.parse('{"name":"axios","version":"0.21.4","description":"Promise based HTTP client for the browser and node.js","main":"index.js","scripts":{"test":"grunt test","start":"node ./sandbox/server.js","build":"NODE_ENV=production grunt build","preversion":"npm test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json","postversion":"git push && git push --tags","examples":"node ./examples/server.js","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","fix":"eslint --fix lib/**/*.js"},"repository":{"type":"git","url":"https://github.com/axios/axios.git"},"keywords":["xhr","http","ajax","promise","node"],"author":"Matt Zabriskie","license":"MIT","bugs":{"url":"https://github.com/axios/axios/issues"},"homepage":"https://axios-http.com","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"jsdelivr":"dist/axios.min.js","unpkg":"dist/axios.min.js","typings":"./index.d.ts","dependencies":{"follow-redirects":"^1.14.0"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}]}');
+
+/***/ }
 
 /******/ 	});
 /************************************************************************/
@@ -4291,8 +4500,9 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_alpheios_data_models__;
 /******/ 	// The require function
 /******/ 	function __webpack_require__(moduleId) {
 /******/ 		// Check if module is in cache
-/******/ 		if(__webpack_module_cache__[moduleId]) {
-/******/ 			return __webpack_module_cache__[moduleId].exports;
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
 /******/ 		}
 /******/ 		// Create a new module (and put it into the cache)
 /******/ 		var module = __webpack_module_cache__[moduleId] = {
@@ -4302,6 +4512,12 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_alpheios_data_models__;
 /******/ 		};
 /******/ 	
 /******/ 		// Execute the module function
+/******/ 		if (!(moduleId in __webpack_modules__)) {
+/******/ 			delete __webpack_module_cache__[moduleId];
+/******/ 			var e = new Error("Cannot find module '" + moduleId + "'");
+/******/ 			e.code = 'MODULE_NOT_FOUND';
+/******/ 			throw e;
+/******/ 		}
 /******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
 /******/ 	
 /******/ 		// Return the exports of the module
@@ -4350,10 +4566,28 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_alpheios_data_models__;
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-/******/ 	// module exports must be returned from runtime so entry inlining is disabled
-/******/ 	// startup
-/******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__("./index.js");
+var __webpack_exports__ = {};
+// This entry needs to be wrapped in an IIFE because it needs to be in strict mode.
+(() => {
+"use strict";
+/*!******************!*\
+  !*** ./index.js ***!
+  \******************/
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   UserDataManager: () => (/* reexport safe */ _wordlist_controllers_user_data_manager_js__WEBPACK_IMPORTED_MODULE_1__["default"]),
+/* harmony export */   WordlistController: () => (/* reexport safe */ _wordlist_controllers_wordlist_controller_js__WEBPACK_IMPORTED_MODULE_0__["default"])
+/* harmony export */ });
+/* harmony import */ var _wordlist_controllers_wordlist_controller_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordlist/controllers/wordlist-controller.js */ "./controllers/wordlist-controller.js");
+/* harmony import */ var _wordlist_controllers_user_data_manager_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordlist/controllers/user-data-manager.js */ "./controllers/user-data-manager.js");
+
+
+
+
+
+})();
+
+/******/ 	return __webpack_exports__;
 /******/ })()
 ;
 });

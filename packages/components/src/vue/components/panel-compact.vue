@@ -175,26 +175,7 @@
           v-show="$store.getters['ui/isActiveTab']('definitions')"
           data-alpheios-ignore="all"
       >
-        <div v-if="$store.getters['app/shortDefDataReady']">
-          <div :key="definition.ID"
-               class="alpheios-panel__contentitem"
-               v-for="definition in formattedShortDefinitions"
-          >
-            <shortdef
-                :definition="definition"
-                :languageCode="$store.state.app.languageCode"
-            />
-          </div>
-        </div>
-
-        <div v-if="$store.getters['app/fullDefDataReady']">
-          <div
-              class="alpheios-panel__contentitem alpheios-panel__contentitem-full-definitions"
-              v-html="formattedFullDefinitions"/>
-        </div>
-        <div v-else>
-          {{ l10n.getText('PLACEHOLDER_DEFINITIONS') }}
-        </div>
+        <definitions-panel :showPlaceholder="true" />
       </div>
 
       <div
@@ -285,15 +266,14 @@ import Platform from '@/lib/utility/platform.js'
 // Vue components
 import NotificationArea from '@/vue/components//notification-area.vue'
 import Inflections from '@/vue/components/inflections/inflections.vue'
-import ShortDef from './shortdef.vue'
 import Grammar from './grammar.vue'
 import Morph from './morph.vue'
+import DefinitionsPanel from './morph-parts/definitions-panel.vue'
 import Treebank from './treebank.vue'
 import InflectionBrowser from '@/vue/components/inflections/inflections-browser.vue'
 
 import UserAuth from './user-auth.vue'
 import WordUsageExamples from '@/vue/components/word-usage-examples/word-usage-examples.vue'
-import { Definition } from 'alpheios-data-models'
 import WordListPanel from '@/vue/components/word-list/word-list-panel.vue'
 import ProgressBar from '@/vue/components/progress-bar.vue'
 import OptionsPanel from '@/vue/components/options.vue'
@@ -340,9 +320,9 @@ export default {
     notificationArea: NotificationArea,
     inflections: Inflections,
     inflectionBrowser: InflectionBrowser,
-    shortdef: ShortDef,
     grammar: Grammar,
     morph: Morph,
+    definitionsPanel: DefinitionsPanel,
     treebank: Treebank,
     userAuth: UserAuth,
     closeIcon: CloseIcon,
@@ -483,34 +463,6 @@ export default {
         top: '2px',
         right: '50px'
       }
-    },
-
-    formattedShortDefinitions () {
-      let definitions = [] // eslint-disable-line prefer-const
-
-      if (this.$store.getters['app/shortDefDataReady'] && this.$store.state.app.homonymDataReady) {
-        for (const lexeme of this.app.getHomonymLexemes()) {
-          if (lexeme.meaning.shortDefs.length > 0) {
-            definitions.push(...lexeme.meaning.shortDefs)
-          } else if (Object.entries(lexeme.lemma.features).length > 0) {
-            definitions.push(new Definition(this.l10n.getMsg('TEXT_NOTICE_NO_DEFS_FOUND'), 'en-US', 'text/plain', lexeme.lemma.word))
-          }
-        }
-      }
-      return definitions
-    },
-
-    formattedFullDefinitions () {
-      let content = ''
-      if (this.$store.getters['app/fullDefDataReady'] && this.$store.state.app.homonymDataReady) {
-        for (const lexeme of this.app.getHomonymLexemes()) {
-          content += `<h3>${lexeme.lemma.word}</h3>\n`
-          for (const fullDef of lexeme.meaning.fullDefs) {
-            content += `${fullDef.text}<br>\n`
-          }
-        }
-      }
-      return content
     },
 
     providersLinkText: function () {

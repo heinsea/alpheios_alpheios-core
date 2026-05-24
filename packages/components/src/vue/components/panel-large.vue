@@ -42,23 +42,7 @@
           v-show="$store.getters['ui/isActiveTab']('definitions')"
           data-alpheios-ignore="all"
           >
-        <div v-if="$store.getters['app/shortDefDataReady']">
-          <div :key="definition.ID"
-               class="alpheios-panel__contentitem"
-               v-for="definition in formattedShortDefinitions"
-          >
-            <shortdef
-                :definition="definition"
-                :languageCode="$store.state.app.languageCode"
-            />
-          </div>
-        </div>
-
-        <div v-if="$store.getters['app/fullDefDataReady']">
-          <div
-              class="alpheios-panel__contentitem alpheios-panel__contentitem-full-definitions"
-              v-html="formattedFullDefinitions"/>
-        </div>
+        <definitions-panel />
       </div>
 
       <div

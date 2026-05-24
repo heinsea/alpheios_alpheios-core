@@ -7,7 +7,7 @@
     >
       <div :class="morphClass(lex)">
         <morph-data :lexeme="lex" :lexemeindex = "index" :lexemeslength="lexemes.length" v-if="lex"/>
-        <definitions-list :lexeme = "lex" v-if="lex"/>
+        <definitions-list :lexeme = "lex" v-if="lex && showDefinitions"/>
 
         <div
             class="alpheios-morph__translation_list"
@@ -41,7 +41,12 @@ export default {
   },
   inject: ['app', 'l10n'],
   storeModules: ['app'],
-  mixins: [DependencyCheck],
+  props: {
+    showDefinitions: {
+      type: Boolean,
+      default: true
+    }
+  },
   computed: {
     lexemes () {
       // A call to `shortDefDataReady` will force this computed prop to recalculate every time definitions data is updated

@@ -3,7 +3,7 @@ import Module from '@/vue/vuex-modules/module.js'
 import Platform from '@/lib/utility/platform.js'
 import LexicalQuery from '@/lib/queries/lexical-query.js'
 import { ClientAdapters } from 'alpheios-client-adapters'
-import { Constants, TreebankDataItem, HomonymGroup, Language, LanguageModelFactory as LMF, Logger } from 'alpheios-data-models'
+import { Constants, TreebankDataItem, HomonymGroup, LanguageModelFactory as LMF, Logger } from 'alpheios-data-models'
 import {
   CedictDestinationConfig as CedictProdConfig,
   CedictDestinationDevConfig as CedictDevConfig
@@ -416,7 +416,7 @@ export default class Lexis extends Module {
     if (!wordUsageExamples) { wordUsageExamples = this._appApi.getWordUsageExamplesQueryParams(textSelector) }
 
     if (source !== LexicalQuery.sources.WORDLIST) {
-      this._appApi.newLexicalRequest(textSelector.normalizedText, textSelector.languageID, textSelector.data, source)
+      this._appApi.newLexicalRequest(textSelector.normalizedText, textSelector.languageID, textSelector.languageCode, textSelector.data, source)
     }
 
     let treebankWordIDs = []
@@ -428,116 +428,32 @@ export default class Lexis extends Module {
       })
     }
 
-    /*
-    TODO: Retrieve lemma, then merge with resources available
-     */
-
-    const language = LMF.getLanguageModel(textSelector.languageID).language
-    const word = textSelector.normalizedText
-
-    let result
-    // A result of a getWordQueryData() request
-    let wqData
-    // This is a bypass of an old workflow for Latin and Greek
-    if (language.isOneOf([Language.LATIN, Language.GREEK])) {
-      // The new workflow is enabled for Latin only
-      let variables = {
-        language: language.toCode(),
-        location: textSelector.location,
-        word,
-        getLexemes: true,
-        getShortDefs: true,
-        useMorphService: true
-      }
-
-      if (language.equals(Language.PERSIAN)) { variables.useWordAsLexeme = true }
-
-      if (treebankWordIDs.length > 0) {
-        // There is treebank data available on the page
-        const treebankVariables = {
-          useTreebankData: true,
-          treebankProvider: treebankDataItem.provider,
-          treebankSentenceID: treebankDataItem.sentenceId,
-          treebankWordIDs
-        }
-        variables = { ...variables, ...treebankVariables }
-      }
-
-      try {
-        wqData = await this.getWordQueryData({
-          variables,
-          source
-        })
-      } catch (err) {
-        Logger.getInstance().error('Observable word query error', err)
-      }
-
-      if (wqData && wqData.homonym) {
-        let homonym = wqData.homonym // eslint-disable-line prefer-const
-
-        // Get lemma translations. Lemma translations are enabled for Latin only
-        if (this._lemmaTranslationEnabled && textSelector.languageID === Constants.LANG_LATIN) {
-          homonym = await Lexis.getLemmaTranslations({
-            homonym, browserLang: this._lemmaTranslationLocale, clientId: this._appApi.clientId, source
-          })
-        }
-
-        // Get word usage examples
-        if (wordUsageExamples) {
-          homonym = await Lexis.getWordUsageExamples({
-            homonym, paginationAuthMax: wordUsageExamples.paginationAuthMax, clientId: this._appApi.clientId
-          })
-        }
-
-        const languageCode = LMF.getLanguageCodeFromId(textSelector.languageID)
-        homonym = await Lexis.getFullDefinitions({
-          homonym,
-          languageCode,
-          clientId: this._appApi.clientId,
-          location: textSelector.location,
-          siteOptions,
-          resourceOptions: this._settingsApi.getResourceOptions()
-        })
-        if (source !== LexicalQuery.sources.WORDLIST) {
-          LexicalQuery.evt.LEXICAL_QUERY_COMPLETE.pub({
-            resultStatus: LexicalQuery.resultStatus.SUCCEEDED,
-            homonym: homonym
-          })
-        }
-      } else {
-        Logger.getInstance().error('Homonym is not available')
-        if (source !== LexicalQuery.sources.WORDLIST) {
-          LexicalQuery.evt.LEXICAL_QUERY_COMPLETE.pub({
-            resultStatus: LexicalQuery.resultStatus.FAILED
-          })
-        }
-      }
-    } else {
-      /*
-      Use the old workflow for languages other than Latin and Greek
-       */
-      let annotatedHomonyms
-      if (treebankWordIDs.length > 0) {
-        annotatedHomonyms = await this.getTreebankData({
-          store, textSelector, treebankDataItem
-        })
-      }
-
-      const lexQuery = LexicalQuery.create(textSelector, {
-        clientId: this._appApi.clientId,
-        siteOptions,
-        verboseMode: this._settingsApi.isInVerboseMode(),
-        wordUsageExamples,
-        resourceOptions: this._settingsApi.getResourceOptions(),
-        langOpts: { [Constants.LANG_PERSIAN]: { lookupMorphLast: true } }, // TODO this should be externalized
-        checkContextForward,
-        cedictServiceUrl: this.hasCedict() ? this._lexisConfig.cedict.target_url : null,
-        lexiconsConfig: this.hasLexiconsConfig() ? this._lexiconsConfig : null,
-        annotatedHomonyms,
-        source
+    let annotatedHomonyms
+    if (treebankWordIDs.length > 0) {
+      annotatedHomonyms = await this.getTreebankData({
+        store, textSelector, treebankDataItem
       })
-      result = lexQuery.getData()
     }
+
+    const lemmaTranslations = this._lemmaTranslationEnabled && textSelector.languageID === Constants.LANG_LATIN
+      ? { locale: this._lemmaTranslationLocale }
+      : null
+
+    const lexQuery = LexicalQuery.create(textSelector, {
+      clientId: this._appApi.clientId,
+      siteOptions,
+      verboseMode: this._settingsApi.isInVerboseMode(),
+      lemmaTranslations,
+      wordUsageExamples,
+      resourceOptions: this._settingsApi.getResourceOptions(),
+      langOpts: { [Constants.LANG_PERSIAN]: { lookupMorphLast: true } }, // TODO this should be externalized
+      checkContextForward,
+      cedictServiceUrl: this.hasCedict() ? this._lexisConfig.cedict.target_url : null,
+      lexiconsConfig: this.hasLexiconsConfig() ? this._lexiconsConfig : null,
+      annotatedHomonyms,
+      source
+    })
+    const result = lexQuery.getData()
 
     // Hide a CEDICT notification on a new lexical query
     store.commit('lexis/hideCedictNotification')

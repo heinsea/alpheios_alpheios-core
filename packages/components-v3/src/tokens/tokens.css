@@ -1,0 +1,220 @@
+/*
+ * Scholarly Glass v3 design tokens.
+ *
+ * Single source of truth for color, type scale, spacing, radii, glass mixins,
+ * and motion. Mirrors mockup/index.html + DESIGN.md §4.
+ *
+ * Light is the default. Dark theme activates via `[data-theme="dark"]` on
+ * any ancestor of consumers. Token names match Material 3 semantic roles,
+ * not raw color names — keeps swapping a palette a single-file edit.
+ */
+
+:host,
+:root,
+[data-theme="light"],
+.alpheios-v3-scope {
+  /* ── Surface ─────────────────────────────────────────────────────────── */
+  --surface:                       #f9f9fb;
+  --surface-dim:                   #d9dadc;
+  --surface-bright:                #f9f9fb;
+  --surface-container-lowest:      #ffffff;
+  --surface-container-low:         #f3f3f5;
+  --surface-container:             #edeef0;
+  --surface-container-high:        #e8e8ea;
+  --surface-container-highest:     #e2e2e4;
+
+  /* ── Text on surface ─────────────────────────────────────────────────── */
+  --on-surface:                    #1a1c1d;
+  --on-surface-variant:            #4c4546;
+
+  /* ── Glass (translucent surface) ─────────────────────────────────────── */
+  --glass-surface:                 rgba(255, 255, 255, 0.65);
+  --glass-surface-low:             rgba(255, 255, 255, 0.35);
+  --glass-border:                  rgba(255, 255, 255, 0.6);
+  --glass-shadow:                  rgba(0, 0, 0, 0.10);
+  --glass-blur:                    blur(20px) saturate(180%);
+
+  /* ── Primary / strong actions ────────────────────────────────────────── */
+  --primary:                       #000000;
+  --on-primary:                    #ffffff;
+  --primary-container:             #1b1b1b;
+  --on-primary-container:          #dcdcdc;
+
+  /* ── Secondary / static info ─────────────────────────────────────────── */
+  --secondary:                     #5e5e5e;
+  --on-secondary:                  #ffffff;
+  --secondary-container:           #e1dfdf;
+  --on-secondary-container:        #3a3a3a;
+
+  /* ── Tertiary / positive signal (verified, matched, current) ─────────── */
+  --tertiary:                      #0e6b4f;
+  --on-tertiary:                   #ffffff;
+  --tertiary-container:            rgba(14, 107, 79, 0.10);
+
+  /* ── Status ──────────────────────────────────────────────────────────── */
+  --error:                         #ba1a1a;
+  --on-error:                      #ffffff;
+  --error-container:               #ffdad6;
+  --on-error-container:            #410002;
+  --warning:                       #7a5a00;
+  --warning-container:             #fff0b8;
+
+  /* ── Lines ───────────────────────────────────────────────────────────── */
+  --outline:                       #7e7576;
+  --outline-variant:               #cfc4c5;
+  --divider:                       rgba(0, 0, 0, 0.06);
+
+  /* ── Recessed input well ─────────────────────────────────────────────── */
+  --recessed-bg:                   rgba(0, 0, 0, 0.05);
+  --recessed-shadow:               inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"],
+:host([data-theme="dark"]),
+.alpheios-v3-scope[data-theme="dark"] {
+  --surface:                       #101113;
+  --surface-dim:                   #0a0b0c;
+  --surface-bright:                #1f2123;
+  --surface-container-lowest:      #0a0b0c;
+  --surface-container-low:         #1a1c1d;
+  --surface-container:             #1f2123;
+  --surface-container-high:        #252729;
+  --surface-container-highest:     #2c2e30;
+
+  --on-surface:                    #e3e3e5;
+  --on-surface-variant:            #c5c0c1;
+
+  --glass-surface:                 rgba(20, 22, 24, 0.55);
+  --glass-surface-low:             rgba(20, 22, 24, 0.35);
+  --glass-border:                  rgba(255, 255, 255, 0.08);
+  --glass-shadow:                  rgba(0, 0, 0, 0.5);
+
+  --primary:                       #ffffff;
+  --on-primary:                    #000000;
+  --primary-container:             #f1f1f1;
+  --on-primary-container:          #1a1a1a;
+
+  --secondary:                     #a8a8a8;
+  --on-secondary:                  #1a1a1a;
+  --secondary-container:           #2a2a2a;
+  --on-secondary-container:        #c8c8c8;
+
+  --tertiary:                      #7fd4b1;
+  --on-tertiary:                   #00301f;
+  --tertiary-container:            rgba(127, 212, 177, 0.14);
+
+  --error:                         #ffb4ab;
+  --on-error:                      #690005;
+  --error-container:               #5e1014;
+  --on-error-container:            #ffdad6;
+
+  --outline:                       #8d8587;
+  --outline-variant:               #4c4546;
+  --divider:                       rgba(255, 255, 255, 0.08);
+
+  --recessed-bg:                   rgba(0, 0, 0, 0.30);
+  --recessed-shadow:               inset 0 1px 2px 0 rgba(0, 0, 0, 0.40);
+}
+
+/* ─── Spacing scale (DESIGN §4.3) ──────────────────────────────────────── */
+:host,
+:root,
+.alpheios-v3-scope {
+  --space-unit:           4px;
+  --space-tight:          4px;
+  --space-element:        8px;
+  --space-container:     12px;
+  --space-stack:         16px;
+  --space-section:       24px;
+
+  /* Surface dimensions */
+  --popup-width:         360px;
+  --popup-max-width:     600px;
+  --drawer-content:      380px;
+  --drawer-sidebar:       64px;
+  --toolbar-fab:          44px;
+  --topbar-height:        44px;
+  /* Footer height — bumped from 48 → 56 to match the mockup so primary CTA
+   * + icon-only secondaries have proper vertical breathing room. */
+  --footer-height:        56px;
+}
+
+/* ─── Radii (DESIGN §4.4) ──────────────────────────────────────────────── */
+:host,
+:root,
+.alpheios-v3-scope {
+  --radius-sm:             2px;
+  --radius:                4px;
+  --radius-md:             6px;
+  --radius-lg:             8px;
+  --radius-xl:            12px;
+  --radius-2xl:           16px;
+  --radius-full:        9999px;
+}
+
+/* ─── Motion (DESIGN §4.6) ─────────────────────────────────────────────── */
+:host,
+:root,
+.alpheios-v3-scope {
+  --motion-fast:           120ms cubic-bezier(0.2, 0, 0, 1);
+  --motion-base:           200ms cubic-bezier(0.2, 0, 0, 1);
+  --motion-slow:           320ms cubic-bezier(0.2, 0, 0, 1);
+  --motion-emphasized:     480ms cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host,
+  :root,
+  .alpheios-v3-scope {
+    --motion-fast:           60ms linear;
+    --motion-base:           60ms linear;
+    --motion-slow:           60ms linear;
+    --motion-emphasized:     60ms linear;
+  }
+}
+
+/* ─── Box-sizing reset (token-scope only; consumers may override) ──────── */
+.alpheios-v3-scope *,
+.alpheios-v3-scope *::before,
+.alpheios-v3-scope *::after { box-sizing: border-box; }
+
+/* ─── Scrollbar — thin, semi-transparent, fades on idle ────────────────── */
+.alpheios-v3-scope * {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.20) transparent;
+}
+[data-theme="dark"] .alpheios-v3-scope *,
+.alpheios-v3-scope[data-theme="dark"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.20) transparent;
+}
+
+/* WebKit / Blink — narrower than the OS default and matches the design.
+ * Track is fully transparent; thumb is a 3 px pill that brightens on hover. */
+.alpheios-v3-scope ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.alpheios-v3-scope ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.alpheios-v3-scope ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: var(--radius-full);
+  /* 1.5 px transparent border so the thumb visually narrows to 3 px. */
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
+  min-height: 32px;
+}
+.alpheios-v3-scope ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.32);
+}
+[data-theme="dark"] .alpheios-v3-scope ::-webkit-scrollbar-thumb,
+.alpheios-v3-scope[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+[data-theme="dark"] .alpheios-v3-scope ::-webkit-scrollbar-thumb:hover,
+.alpheios-v3-scope[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+}
+.alpheios-v3-scope ::-webkit-scrollbar-corner { background: transparent; }
