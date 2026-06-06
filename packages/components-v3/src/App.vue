@@ -602,6 +602,10 @@ const authFooterMeta = computed(() =>
     ? authPageRef.value.footerMeta
     : AUTH_SHELL.loggedIn.lastSync
 )
+const grammarFooterMetaLive = ref('')
+const grammarFooterMeta = computed(() =>
+  grammarFooterMetaLive.value || grammarPageData.value.grammar.footerMeta
+)
 </script>
 
 <template>
@@ -662,7 +666,7 @@ const authFooterMeta = computed(() =>
       <InflectionsPage v-else-if="page === 'inflections'" :data="inflectionsData" />
       <ResourcesPage   v-else-if="page === 'usage'"  mode="usage"   :data="usagePageData" />
       <ResourcesPage   v-else-if="page === 'tree'"   mode="tree"    :data="treePageData" />
-      <ResourcesPage   v-else-if="page === 'grammar'" mode="grammar" :data="grammarPageData" />
+      <ResourcesPage   v-else-if="page === 'grammar'" mode="grammar" :data="grammarPageData" @footer-meta="grammarFooterMetaLive = $event" />
       <WordListPage
         v-else-if="page === 'wordlist'"
         :data="wordlistData"
@@ -715,7 +719,7 @@ const authFooterMeta = computed(() =>
       </template>
 
       <template v-else-if="page === 'grammar'" #footer>
-        <span class="alph-app__footer-meta">{{ grammarPageData.grammar.footerMeta }}</span>
+        <span class="alph-app__footer-meta" :title="grammarFooterMeta">{{ grammarFooterMeta }}</span>
       </template>
 
       <template v-else-if="page === 'wordlist'" #footer>

@@ -13,9 +13,10 @@
  * the routing layer flat at a small CSS cost.
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
+import { uiStore } from '../store/ui-store.js'
 
 const props = defineProps({
   mode: { type: String, required: true }, // 'usage' | 'grammar' | 'tree'
@@ -29,46 +30,117 @@ const sortLabel = ref('by date')
 const genreLabel = ref('any')
 
 /* ─── Grammar mode local state ─── */
-const grammar = computed(() => props.data.grammar || { sources: [], reading: { blocks: [] }, language: '', sourceCount: 0, linkedFrom: '', footerMeta: '', browserUrl: '' })
+const GRAMMAR_ORIGIN = 'https://grammars.alpheios.net'
+const HOST_MSG_SOURCE = 'alph-grammar-host'   // panel → reader
+const READER_MSG_SOURCE = 'alph-grammar'      // reader → panel
+
+const grammar = computed(() => props.data.grammar || { sources: [], books: [], reading: { blocks: [] }, language: '', sourceCount: 0, linkedFrom: '', footerMeta: '', browserUrl: '' })
 const grammarFrame = ref(null)
 const grammarSrc = ref(grammar.value.browserUrl || '')
-watch(() => grammar.value.browserUrl, (url) => { if (url) grammarSrc.value = url }, { immediate: true })
+const currentUrl = ref(grammarSrc.value)   // live URL reported by the reader bridge
+const currentTitle = ref('')
+const selectedBookId = ref('')
+
+watch(() => grammar.value.browserUrl, (url) => {
+  if (url) { grammarSrc.value = url; currentUrl.value = url }
+}, { immediate: true })
+
+const grammarBooks = computed(() => grammar.value.books || [])
+
+// Keep the dropdown synced to whichever book the live URL belongs to.
+watch([currentUrl, grammarBooks], () => {
+  const url = currentUrl.value || ''
+  const match = grammarBooks.value.find(b => url.includes(`/${b.id}/`))
+  if (match) selectedBookId.value = match.id
+}, { immediate: true })
+
+const activeGrammarBook = computed(() => (
+  grammarBooks.value.find(b => b.id === selectedBookId.value) || null
+))
+
 const grammarTitle = computed(() => {
-  const active = grammar.value.sources && grammar.value.sources.find(source => source.active)
-  return (active && active.title) || 'Grammar'
+  if (currentTitle.value) return currentTitle.value
+  return (activeGrammarBook.value && activeGrammarBook.value.title) || grammar.value.language || 'Grammar'
 })
+
+const grammarFooterMeta = computed(() => (
+  activeGrammarBook.value
+    ? (activeGrammarBook.value.source || `${activeGrammarBook.value.title} · official browser`)
+    : grammar.value?.footerMeta
+))
+
+// True only once the in-frame reader announces itself (Allen & Greenough
+// pages). Posting before that — e.g. while loadUrl() has the iframe on the
+// transient blank document, or for non-AG books that have no reader bridge —
+// would target the wrong origin, and the browser logs a postMessage error that
+// try/catch cannot suppress. Gating on the handshake avoids that entirely.
+const readerReady = ref(false)
+
+function postToFrame (msg) {
+  if (!readerReady.value) return
+  try {
+    grammarFrame.value?.contentWindow?.postMessage({ source: HOST_MSG_SOURCE, ...msg }, GRAMMAR_ORIGIN)
+  } catch (e) { /* frame not ready / cross-origin */ }
+}
+function postTheme () { postToFrame({ action: 'set-theme', theme: uiStore.state.theme }) }
+
+// Force a (re)load even when the URL is unchanged — Vue would otherwise skip it.
+function loadUrl (url) {
+  if (!url) return
+  readerReady.value = false
+  grammarSrc.value = ''
+  requestAnimationFrame(() => { grammarSrc.value = url; currentUrl.value = url })
+}
+
+function grammarBack () { postToFrame({ action: 'back' }) }
+function grammarForward () { postToFrame({ action: 'forward' }) }
+function grammarReload () {
+  // Re-set src so reload works for every book, including non-AG ones that have
+  // no in-frame reader bridge.
+  loadUrl(currentUrl.value || grammarSrc.value)
+}
+function grammarHome () {
+  const book = grammarBooks.value.find(b => b.id === selectedBookId.value)
+  loadUrl((book && book.url) || grammar.value.browserUrl)
+}
+function selectBook (id) {
+  const book = grammarBooks.value.find(b => b.id === id)
+  if (!book) return
+  selectedBookId.value = id
+  currentTitle.value = ''
+  loadUrl(book.url)
+}
+
+function onHostMessage (event) {
+  if (event.origin !== GRAMMAR_ORIGIN) return
+  const data = event.data
+  if (!data || data.source !== READER_MSG_SOURCE) return
+  if (data.type === 'ready' || data.type === 'state') readerReady.value = true
+  if (data.type === 'ready') postTheme()
+  if (data.url) currentUrl.value = data.url
+  if (typeof data.title === 'string') currentTitle.value = data.title
+}
+
+onMounted(() => window.addEventListener('message', onHostMessage))
+onBeforeUnmount(() => window.removeEventListener('message', onHostMessage))
+watch(() => uiStore.state.theme, () => postTheme())
 
 /* ─── Tree mode local state ─── */
 const tree = computed(() => props.data.tree || { nodes: [], footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
 
-function frameBack (frameRef, fallbackUrl) {
-  try { frameRef.value?.contentWindow?.history?.go(-1) } catch { if (fallbackUrl) grammarSrc.value = fallbackUrl }
-}
-function frameForward (frameRef) {
-  try { frameRef.value?.contentWindow?.history?.go(1) } catch { /* cross-origin fallback: no-op */ }
-}
-function frameReload (frameRef, srcRef) {
-  try {
-    frameRef.value?.contentWindow?.location?.reload()
-  } catch {
-    if (srcRef && srcRef.value) {
-      const url = srcRef.value
-      srcRef.value = ''
-      requestAnimationFrame(() => { srcRef.value = url })
-    }
-  }
-}
-function grammarHome () {
-  if (grammar.value.browserUrl) grammarSrc.value = grammar.value.browserUrl
-}
-
 const footerMeta = computed(() => {
   if (props.mode === 'usage')   return usage.value?.footerMeta
   if (props.mode === 'tree')    return tree.value?.footerMeta
-  if (props.mode === 'grammar') return grammar.value?.footerMeta
+  if (props.mode === 'grammar') return grammarFooterMeta.value
   return ''
 })
 defineExpose({ footerMeta })
+
+// Push footer text up to App so the drawer footer stays in sync. A parent
+// computed reading this via the template ref does not re-track when only the
+// child's local state (e.g. selectedBookId) changes, so emit it explicitly.
+const emit = defineEmits(['footer-meta'])
+watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 </script>
 
 <template>
@@ -141,21 +213,32 @@ defineExpose({ footerMeta })
           <button type="button" class="alph-resources__tool-button" aria-label="Grammar home" @click="grammarHome">
             <Icon name="home" :size="14" />
           </button>
-          <button type="button" class="alph-resources__tool-button" aria-label="Back" @click="frameBack(grammarFrame, grammar.browserUrl)">
+          <button type="button" class="alph-resources__tool-button" aria-label="Back" @click="grammarBack">
             <Icon name="arrow_back" :size="14" />
           </button>
-          <button type="button" class="alph-resources__tool-button" aria-label="Forward" @click="frameForward(grammarFrame)">
+          <button type="button" class="alph-resources__tool-button" aria-label="Forward" @click="grammarForward">
             <Icon name="arrow_forward" :size="14" />
           </button>
-          <button type="button" class="alph-resources__tool-button" aria-label="Reload" @click="frameReload(grammarFrame, grammarSrc)">
+          <button type="button" class="alph-resources__tool-button" aria-label="Reload" @click="grammarReload">
             <Icon name="refresh" :size="14" />
           </button>
         </div>
-        <div class="alph-resources__browser-title">
+
+        <select
+          v-if="grammarBooks.length"
+          class="alph-resources__book-select"
+          :value="selectedBookId"
+          aria-label="Select grammar book"
+          @change="selectBook($event.target.value)"
+        >
+          <option v-for="b in grammarBooks" :key="b.id" :value="b.id">{{ b.label }}</option>
+        </select>
+        <div v-else class="alph-resources__browser-title">
           <small>{{ grammar.language || 'Latin' }} grammar</small>
         </div>
+
         <a
-          :href="grammar.browserUrl"
+          :href="currentUrl || grammar.browserUrl"
           target="_blank"
           rel="noopener"
           class="alph-resources__browser-open"
@@ -171,6 +254,7 @@ defineExpose({ footerMeta })
           :src="grammarSrc"
           class="alph-resources__grammar-iframe"
           :title="`${grammarTitle} grammar`"
+          @load="postTheme"
         />
       </div>
 
@@ -348,19 +432,34 @@ defineExpose({ footerMeta })
 
 /* ── Grammar ── */
 .alph-resources__browser-toolbar {
-  min-height: 52px;
-  padding: 8px 12px;
+  min-height: 44px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border-bottom: 1px solid var(--divider);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--surface-container);
 }
 .alph-resources__browser-controls {
   display: inline-flex;
   gap: 4px;
   flex-shrink: 0;
 }
+.alph-resources__book-select {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-lowest);
+  color: var(--on-surface);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.alph-resources__book-select:hover { border-color: var(--on-surface); }
 .alph-resources__browser-title {
   display: flex;
   flex-direction: column;
@@ -414,18 +513,18 @@ defineExpose({ footerMeta })
 }
 .alph-resources__tool-link:hover { border-color: var(--on-surface); }
 .alph-resources__grammar-browser {
-  padding: 18px 18px 22px;
-  height: calc(100vh - var(--topbar-height) - var(--footer-height) - 52px);
+  padding: 0;
+  height: calc(100vh - var(--topbar-height) - var(--footer-height) - 44px);
   min-height: 420px;
-  background: #f6f7f8;
+  background: var(--surface-container-lowest);
 }
 .alph-resources__grammar-iframe {
+  display: block;
   width: 100%;
   height: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.10);
-  border-radius: var(--radius-lg);
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-container-lowest);
 }
 .alph-resources__h-section {
   font-size: 10px; font-weight: 600;
