@@ -41,7 +41,7 @@ const tabs = [
   { id: 'lookup',      icon: 'search',         label: 'Lookup' },
   { id: 'morph',       icon: 'menu_book',      label: 'Morph' },
   { id: 'inflections', icon: 'table_view',     label: 'Infl' },
-  { id: 'usage',       icon: 'format_quote',   label: 'Usage' },
+  // { id: 'usage',       icon: 'format_quote',   label: 'Usage' }, // temporarily hidden — not in use
   { id: 'tree',        icon: 'account_tree',   label: 'Tree' },
   { id: 'grammar',     icon: 'history_edu',    label: 'Gram' },
   { id: 'wordlist',    icon: 'bookmark',       label: 'List' }
@@ -88,7 +88,6 @@ function stopResize () {
   resizePointerId = null
   window.removeEventListener('pointermove', onResizeMove)
   window.removeEventListener('pointerup', stopResize)
-  document.body.style.cursor = ''
   document.documentElement.style.userSelect = ''
   try { window.localStorage.setItem('alpheios-v3-drawer-width', String(drawerWidth.value)) } catch { /* ignore */ }
 }
@@ -98,7 +97,6 @@ function startResize (event) {
   resizeStartX = event.clientX
   resizeStartWidth = drawerWidth.value
   try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* ignore */ }
-  document.body.style.cursor = 'col-resize'
   document.documentElement.style.userSelect = 'none'
   window.addEventListener('pointermove', onResizeMove)
   window.addEventListener('pointerup', stopResize)
@@ -236,7 +234,7 @@ onBeforeUnmount(() => {
   top: 0;
   bottom: 0;
   width: 12px;
-  cursor: col-resize;
+  cursor: default;
   z-index: 5;
   touch-action: none;
 }

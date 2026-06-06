@@ -123,7 +123,6 @@ function edgeAt (r, e) {
   if (l) return 'w'; if (ri) return 'e'
   return ''
 }
-const EDGE_CURSOR = { n:'ns', s:'ns', e:'ew', w:'ew', nw:'nwse', se:'nwse', ne:'nesw', sw:'nesw' }
 
 /* Initialise position from computed CSS defaults; use the live rect so
    explicit left/top/right:auto inline style replaces the CSS right anchor. */
@@ -143,7 +142,6 @@ function onHeaderPointerDown (e) {
   const r = popupRect()
   if (edgeAt(r, e)) return
   dragging.value = true
-  document.body.style.cursor = 'grabbing'
   dragState.sx = e.clientX; dragState.sy = e.clientY
   dragState.sl = r.left; dragState.st = r.top
   popupRef.value.setPointerCapture(e.pointerId)
@@ -158,7 +156,6 @@ function onRootPointerDown (e) {
   if (!edge) return
   resizing.value = true
   resizeEdge.value = edge
-  document.body.style.cursor = EDGE_CURSOR[edge] || 'ew-resize'
   resizeState.sx = e.clientX; resizeState.sy = e.clientY
   resizeState.sl = r.left; resizeState.st = r.top
   resizeState.sw = r.width; resizeState.sh = r.height
@@ -190,28 +187,30 @@ function onPointerMove (e) {
     applyPos(l, Math.max(0, t))
     return
   }
-  // Hover — show resize cursor near edges (body area only)
-  const ed = edgeAt(popupRect(), e)
-  popupRef.value.style.cursor = ed ? (EDGE_CURSOR[ed] || '') : ''
 }
 
 function onPointerUp () {
   dragging.value = false
   resizing.value = false
   resizeEdge.value = ''
-  document.body.style.cursor = ''
-  popupRef.value.style.cursor = ''
 }
 
 const popupRootStyle = computed(() => {
+  // The build pipeline force-adds `!important` to every v3 stylesheet rule,
+  // including `.alph-popup { top: 96px; right: 32px; width: … }`. A plain
+  // inline style cannot override a stylesheet `!important`, so the dragged
+  // top/right and the resized width would be ignored (vertical drag froze,
+  // resize width snapped back). An inline `!important` *does* win over a
+  // stylesheet `!important`, so the dynamic position/size must be marked
+  // important to take effect.
   const s = {}
   if (popupPos.value) {
-    s.left = `${popupPos.value.left}px`
-    s.top = `${popupPos.value.top}px`
-    s.right = 'auto'
+    s.left = `${popupPos.value.left}px !important`
+    s.top = `${popupPos.value.top}px !important`
+    s.right = 'auto !important'
   }
-  if (popupCustomWidth.value) s.width = `${popupCustomWidth.value}px`
-  if (popupCustomHeight.value) s.height = `${popupCustomHeight.value}px`
+  if (popupCustomWidth.value) s.width = `${popupCustomWidth.value}px !important`
+  if (popupCustomHeight.value) s.height = `${popupCustomHeight.value}px !important`
   return s
 })
 
@@ -443,7 +442,6 @@ const popupRootStyle = computed(() => {
   border-bottom: 1px solid var(--divider);
   background: rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
-  cursor: grab;
   user-select: none;
   touch-action: none;
 }

@@ -24,6 +24,7 @@
 // CSS side effects — order: tokens → fonts → component scoped styles.
 import './tokens/tokens.css'
 import './tokens/fonts.css'
+import './grammar-reader/grammar-reader.css'
 
 import App from './App.vue'
 import MountPlaceholder from './MountPlaceholder.vue'
@@ -67,6 +68,9 @@ import { useWordList } from './composables/use-wordlist.js'
 import { useInflections } from './composables/use-inflections.js'
 import { useResources } from './composables/use-resources.js'
 
+// Grammar reader — DOM enhancement for static grammar resource pages.
+import { initializeGrammarReader, isGrammarReaderPage } from './grammar-reader/grammar-reader.js'
+
 export {
   App,
   MountPlaceholder,
@@ -107,7 +111,10 @@ export {
   useLookup,
   useWordList,
   useInflections,
-  useResources
+  useResources,
+  // grammar reader
+  initializeGrammarReader,
+  isGrammarReaderPage
 }
 
 export default App
