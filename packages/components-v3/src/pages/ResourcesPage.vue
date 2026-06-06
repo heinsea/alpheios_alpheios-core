@@ -144,7 +144,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 </script>
 
 <template>
-  <div class="alph-resources">
+  <div class="alph-resources" :class="{ 'alph-resources--fill': mode === 'grammar' }">
 
     <!-- ============ USAGE ============ -->
     <template v-if="mode === 'usage'">
@@ -431,6 +431,19 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 }
 
 /* ── Grammar ── */
+/* In grammar mode the page fills the drawer scroll area exactly via flex, so
+ * the iframe scrolls internally and no spurious outer scrollbar appears. */
+.alph-resources--fill {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.alph-resources--fill .alph-resources__browser-toolbar { flex-shrink: 0; }
+.alph-resources--fill .alph-resources__grammar-browser {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
 .alph-resources__browser-toolbar {
   min-height: 44px;
   padding: 6px 10px;

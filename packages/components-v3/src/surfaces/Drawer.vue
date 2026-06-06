@@ -47,7 +47,7 @@ const tabs = [
   { id: 'wordlist',    icon: 'bookmark',       label: 'List' }
 ]
 const bottomTabs = [
-  { id: 'user', icon: 'account_circle', label: 'User' },
+  // { id: 'user', icon: 'account_circle', label: 'User' }, // temporarily hidden — not in use
   { id: 'opts', icon: 'settings',       label: 'Opts' }
 ]
 

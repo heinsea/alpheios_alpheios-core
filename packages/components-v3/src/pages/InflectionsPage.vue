@@ -32,16 +32,11 @@ function toBrowser () { mode.value = 'browser' }
 /* ─── Matched mode local state ─── */
 const matched = computed(() => props.data.matched)
 const wordClass    = ref(matched.value.wordClass)        // 'verb' | 'noun'
-const density      = ref(matched.value.density)          // 'wide' | 'narrow'
 const filterId     = ref(matched.value.filterChips.find(c => c.active)?.id ?? matched.value.filterChips[0]?.id ?? 'all')
 const highlight    = ref(matched.value.highlightMatches)
 const wordClassOpts = [
   { value: 'verb', label: 'Verb' },
   { value: 'noun', label: 'Noun' }
-]
-const densityOpts = [
-  { value: 'wide',   label: 'Wide' },
-  { value: 'narrow', label: 'Narrow' }
 ]
 
 /* ─── Browser mode local state ─── */
@@ -65,18 +60,32 @@ const activeParadigmItem = computed(() =>
   browserParadigmItems.value.find(t => t.title === paradigm.value) || browserParadigmItems.value[0] || null
 )
 
+/**
+ * Inflection data uses `<br>` to separate multiple alternative forms within one
+ * cell. The table renders cell text with `{{ }}` (HTML-escaped), so convert the
+ * separators to newlines; cells use `white-space: pre-line` to stack them.
+ */
+function normalizeForms (value) {
+  if (typeof value !== 'string') return value || ''
+  return value
+    .split(/<br\s*\/?>/i)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 function extractStandardColumns (view) {
   if (!view) return []
   try {
     if (view.table && Array.isArray(view.table.headers) && view.table.headers.length) {
       const headerRow = view.table.headers[0]
       if (headerRow && Array.isArray(headerRow.cells)) {
-        return ['', ...headerRow.cells.map(cell => cell.value || cell.title || '')]
+        return ['', ...headerRow.cells.map(cell => normalizeForms(cell.value || cell.title || ''))]
       }
     }
     if (view.wideView && view.wideView.rows && view.wideView.rows.length) {
       const firstRow = view.wideView.rows[0]
-      return (firstRow.cells || []).map(cell => cell.value || '')
+      return (firstRow.cells || []).map(cell => normalizeForms(cell.value || ''))
     }
   } catch { /* use fallback */ }
   return browser.value.preview?.columns || []
@@ -89,10 +98,10 @@ function extractStandardRows (view) {
     const labelCells = cells.filter(c => !c.isDataCell)
     const dataCells = cells.filter(c => c.isDataCell)
     return {
-      head: labelCells.map(c => c.value || '').filter(Boolean).join(' · ') || `Row ${rowIndex + 1}`,
+      head: labelCells.map(c => normalizeForms(c.value || '')).filter(Boolean).join(' · ') || `Row ${rowIndex + 1}`,
       cells: dataCells.map(cell => {
         const morph = (cell.morphemes && cell.morphemes[0]) || cell
-        return { value: morph.value || cell.value || '', lang: true }
+        return { value: normalizeForms(morph.value || cell.value || ''), lang: true }
       })
     }
   })
@@ -122,7 +131,6 @@ const footerMeta = computed(() =>
 )
 watch(matched, (m) => {
   wordClass.value = m.wordClass
-  density.value = m.density
   filterId.value = m.filterChips.find(c => c.active)?.id ?? m.filterChips[0]?.id ?? 'all'
   highlight.value = m.highlightMatches
 })
@@ -169,7 +177,6 @@ defineExpose({ footerMeta, mode })
     <template v-if="mode === 'matched'">
       <div class="alph-infl__seg-row">
         <Segmented v-model="wordClass" :options="wordClassOpts" size="inline" aria-label="Word class" />
-        <Segmented v-model="density"   :options="densityOpts"   size="inline" aria-label="Density" />
       </div>
 
       <div class="alph-infl__chip-row">
@@ -345,6 +352,7 @@ defineExpose({ footerMeta, mode })
 .alph-infl__table td {
   padding: 6px 8px;
   text-align: left;
+  white-space: pre-line;
   border-bottom: 1px solid var(--divider);
   border-right: 1px solid var(--divider);
 }

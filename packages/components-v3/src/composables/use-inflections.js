@@ -18,6 +18,22 @@ import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
 import InflTablesList from '../data/inflections-browser-tables.json'
 
+/**
+ * Normalize a table-cell string: inflection data uses `<br>` to separate
+ * multiple alternative forms within one cell. The v3 table renders cell text
+ * with `{{ }}` (HTML-escaped), so a literal `<br>` would show as text. Convert
+ * the separators to newlines; the table cells use `white-space: pre-line` so
+ * the alternatives stack on separate lines.
+ */
+function normalizeForms (value) {
+  if (typeof value !== 'string') return value || ''
+  return value
+    .split(/<br\s*\/?>/i)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 export function useInflections () {
   const controller = useAppController()
   if (!controller) {
@@ -76,7 +92,7 @@ export function useInflections () {
       const headerRow = view.table.headers[0]
       if (headerRow && Array.isArray(headerRow.cells)) {
         headerRow.cells.forEach(cell => {
-          cols.push(cell.value || cell.title || '')
+          cols.push(normalizeForms(cell.value || cell.title || ''))
         })
       }
     }
@@ -102,12 +118,12 @@ export function useInflections () {
       const headCell = cells.find(c => !c.isDataCell)
       const dataCells = cells.filter(c => c.isDataCell)
       return {
-        head: headCell ? (headCell.value || '') : '',
+        head: headCell ? normalizeForms(headCell.value || '') : '',
         cells: dataCells.map(cell => {
           const morph = (cell.morphemes && cell.morphemes[0]) || {}
           const isMatch = !!(morph.match && (morph.match.suffixMatch || morph.match.morphologyMatch))
           return {
-            value: morph.value || '',
+            value: normalizeForms(morph.value || ''),
             lang: true,
             match: isMatch,
             secondary: morph.match && morph.match.morphologyMatch ? 'match' : ''
@@ -175,7 +191,6 @@ export function useInflections () {
       pos: matchedView.partOfSpeech || '',
       subhead: matchedView.title || '',
       wordClass: matchedView.partOfSpeech || 'noun',
-      density: 'wide',
       filterChips: extractFilterChips(viewSet),
       highlightMatches: true,
       table: {
