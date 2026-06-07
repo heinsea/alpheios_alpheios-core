@@ -16,7 +16,9 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import Chip from '../primitives/Chip.vue'
 import Icon from '../primitives/Icon.vue'
+import DependencyTree from '../primitives/DependencyTree.vue'
 import { uiStore } from '../store/ui-store.js'
+import { summarizeTreebankPos } from '../lib/treebank-pos.js'
 
 const props = defineProps({
   mode: { type: String, required: true }, // 'usage' | 'grammar' | 'tree'
@@ -126,7 +128,71 @@ onBeforeUnmount(() => window.removeEventListener('message', onHostMessage))
 watch(() => uiStore.state.theme, () => postTheme())
 
 /* ─── Tree mode local state ─── */
-const tree = computed(() => props.data.tree || { nodes: [], footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
+const tree = computed(() => ({
+  nodes: [],
+  edges: [],
+  text: '',
+  footerMeta: '',
+  officialReaderUrl: '',
+  isOfficialTextsPage: false,
+  ...(props.data.tree || {})
+}))
+const treeText = computed(() => tree.value.text || tree.value.textStrip || '')
+const selectedTreeTokenIds = ref([])
+const selectedTreePos = ref([])
+const treePosSummary = computed(() => summarizeTreebankPos(tree.value.nodes || []))
+const treePosTotal = computed(() => treePosSummary.value.reduce((sum, item) => sum + item.count, 0))
+const treeTokenMap = computed(() => new Map((tree.value.nodes || []).map(node => [Number(node.id), node])))
+const activeTreeHighlightIds = computed(() => selectedTreeTokenIds.value)
+const selectedTreeTokens = computed(() => (
+  activeTreeHighlightIds.value
+    .map(id => treeTokenMap.value.get(Number(id)))
+    .filter(Boolean)
+))
+const selectedTreeToken = computed(() => selectedTreeTokens.value[0] || null)
+const selectedTreeRelations = computed(() => selectedTreeTokens.value.map(token => ({
+  token,
+  ...relationsForTreeToken(token)
+})))
+
+function relationsForTreeToken (token) {
+  const id = Number(token.id)
+  const headEdge = (tree.value.edges || []).find(edge => Number(edge.to) === id)
+  const head = headEdge
+    ? { relation: headEdge.relation, token: treeTokenMap.value.get(Number(headEdge.from)) || null }
+    : null
+  const dependents = (tree.value.edges || [])
+    .filter(edge => Number(edge.from) === id)
+    .map(edge => ({ relation: edge.relation, token: treeTokenMap.value.get(Number(edge.to)) || null }))
+    .filter(item => item.token)
+  return { head, dependents }
+}
+
+watch(() => tree.value.id, () => {
+  selectedTreeTokenIds.value = []
+})
+
+function toggleTreePos (pos) {
+  selectedTreePos.value = selectedTreePos.value.includes(pos)
+    ? selectedTreePos.value.filter(item => item !== pos)
+    : [...selectedTreePos.value, pos]
+}
+
+function clearTreePos () {
+  selectedTreePos.value = []
+}
+
+function clearTreeSelection () {
+  selectedTreeTokenIds.value = []
+}
+
+function selectTreeToken (id) {
+  const tokenId = Number(id)
+  if (!Number.isFinite(tokenId)) return
+  selectedTreeTokenIds.value = selectedTreeTokenIds.value.includes(tokenId)
+    ? selectedTreeTokenIds.value.filter(item => item !== tokenId)
+    : [...selectedTreeTokenIds.value, tokenId]
+}
 
 const footerMeta = computed(() => {
   if (props.mode === 'usage')   return usage.value?.footerMeta
@@ -266,8 +332,104 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 
     <!-- ============ TREE ============ -->
     <template v-else-if="mode === 'tree'">
+      <!-- Native dependency tree POC (structured nodes/edges data) -->
+      <template v-if="tree.nodes && tree.nodes.length">
+        <div class="alph-resources__tree-toolbar">
+          <span class="alph-resources__sentence-id" v-html="tree.ref" />
+          <Chip
+            v-if="activeTreeHighlightIds.length"
+            variant="default"
+            clickable
+            aria-label="Clear selected treebank relations"
+            @click="clearTreeSelection"
+          >
+            Clear
+          </Chip>
+        </div>
+        <div v-if="treePosSummary.length" class="alph-resources__tree-filter-row">
+          <Chip
+            variant="default"
+            clickable
+            :active="!selectedTreePos.length"
+            :aria-label="`Show all ${treePosTotal} tokens`"
+            @click="clearTreePos"
+          >
+            All
+            <span class="alph-resources__chip-count">· {{ treePosTotal }}</span>
+          </Chip>
+          <Chip
+            v-for="item in treePosSummary"
+            :key="item.pos"
+            class="alph-resources__tree-pos-chip"
+            variant="default"
+            clickable
+            :active="selectedTreePos.includes(item.pos)"
+            :aria-label="`Toggle ${item.pos} tokens`"
+            @click="toggleTreePos(item.pos)"
+          >
+            {{ item.pos }}
+            <span class="alph-resources__chip-count">· {{ item.count }}</span>
+          </Chip>
+        </div>
+        <div v-if="treeText" class="alph-resources__tree-strip">
+          {{ treeText }}
+        </div>
+        <div class="alph-resources__tree-canvas">
+          <div class="alph-resources__tree-svg-wrap">
+            <DependencyTree
+              class="alph-resources__tree-svg"
+              :nodes="tree.nodes"
+              :edges="tree.edges || []"
+              :highlight-ids="activeTreeHighlightIds"
+              :selected-pos="selectedTreePos"
+              @select="selectTreeToken"
+            />
+          </div>
+          <div v-if="selectedTreeTokens.length" class="alph-resources__tree-inspector">
+            <div v-if="selectedTreeTokens.length === 1" class="alph-resources__tree-inspector-main">
+              <strong class="lang-classical">{{ selectedTreeToken.form }}</strong>
+              <span>{{ selectedTreeToken.pos || 'TOKEN' }}</span>
+              <small v-if="selectedTreeToken.morph">{{ selectedTreeToken.morph }}</small>
+            </div>
+            <div v-else class="alph-resources__tree-inspector-main">
+              <strong>Selected</strong>
+              <span>{{ selectedTreeTokens.map(token => token.pos || 'TOKEN').join(' · ') }}</span>
+            </div>
+            <div class="alph-resources__tree-inspector-links">
+              <span class="alph-resources__tree-port-legend">
+                <i class="alph-resources__tree-port alph-resources__tree-port--head" />
+                head
+                <i class="alph-resources__tree-port alph-resources__tree-port--dependent" />
+                dependent
+              </span>
+              <template v-for="item in selectedTreeRelations" :key="item.token.id">
+                <span>
+                  <b class="lang-classical">{{ item.token.form }}</b>
+                  <template v-if="item.head">
+                    Head:
+                    <b class="lang-classical">{{ item.head.token?.form || '[0]' }}</b>
+                    <em>{{ item.head.relation }}</em>
+                  </template>
+                  <template v-else>Root</template>
+                </span>
+                <span v-if="item.dependents.length">
+                  Dependents:
+                  <b
+                    v-for="dep in item.dependents"
+                    :key="`${item.token.id}-${dep.token.id}`"
+                    class="lang-classical"
+                  >
+                    {{ dep.token.form }} <em>{{ dep.relation }}</em>
+                  </b>
+                </span>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <!-- Live treebank iframe (when data is available) -->
-      <template v-if="tree.treebankSrc">
+      <template v-else-if="tree.treebankSrc">
         <div class="alph-resources__tree-toolbar">
           <span class="alph-resources__sentence-id" v-html="tree.ref" />
         </div>
@@ -653,9 +815,29 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 
 /* ── Tree ── */
 .alph-resources__tree-toolbar {
-  display: flex; align-items: center; gap: 6px;
+  box-sizing: border-box;
+  min-height: 37px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--divider);
+}
+.alph-resources__tree-filter-row {
+  --alph-tree-pos-accent: #F4511E;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--surface-container-lowest);
+}
+.alph-resources__tree-filter-row :deep(.alph-resources__tree-pos-chip.alph-chip--active) {
+  background: var(--alph-tree-pos-accent);
+  border-color: var(--alph-tree-pos-accent);
+  color: #fff;
+}
+.alph-resources__tree-filter-row :deep(.alph-resources__tree-pos-chip.alph-chip--clickable.alph-chip--active:hover) {
+  background: var(--alph-tree-pos-accent);
+  border-color: var(--alph-tree-pos-accent);
 }
 .alph-resources__pager {
   display: inline-flex; gap: 0;
@@ -697,6 +879,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 .alph-resources__zoom button + button { border-left: 1px solid var(--outline-variant); }
 
 .alph-resources__tree-canvas {
+  --alph-tree-accent: #00695C;
   background:
     radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6), transparent 60%),
     var(--surface-container-low);
@@ -711,11 +894,85 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 }
 .alph-resources__tree-svg-wrap {
   padding: 16px 12px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: flex-start;
   transform-origin: top left;
   transition: transform var(--motion-fast);
 }
 .alph-resources__tree-svg { font-family: 'Inter', sans-serif; }
+
+.alph-resources__tree-inspector {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-top: 1px solid var(--divider);
+  background: var(--surface-container-lowest);
+}
+.alph-resources__tree-inspector-main {
+  min-width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.alph-resources__tree-inspector-main strong {
+  font-size: 15px;
+  color: var(--alph-tree-accent);
+}
+.alph-resources__tree-inspector-main span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--on-surface);
+}
+.alph-resources__tree-inspector-main small,
+.alph-resources__tree-inspector-links {
+  font-size: 10px;
+  line-height: 15px;
+  color: var(--on-surface-variant);
+}
+.alph-resources__tree-inspector-links {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.alph-resources__tree-inspector-links span {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.alph-resources__tree-inspector-links b {
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.alph-resources__tree-inspector-links em {
+  color: var(--alph-tree-accent);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+.alph-resources__tree-port-legend {
+  color: var(--on-surface-variant);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.alph-resources__tree-port {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: inline-block;
+}
+.alph-resources__tree-port--head {
+  border: 1.4px solid var(--alph-tree-accent);
+  background: var(--surface-container-lowest);
+}
+.alph-resources__tree-port--dependent {
+  background: var(--alph-tree-accent);
+}
 
 .alph-resources__tree-empty {
   margin: 12px;
@@ -746,7 +1003,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 
 .alph-resources__tree-strip {
   padding: 8px 12px;
-  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
   background: rgba(255,255,255,0.3);
   font-family: 'Lato', serif;
   font-size: 12px; line-height: 18px;

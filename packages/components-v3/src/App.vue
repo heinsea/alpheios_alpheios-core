@@ -49,6 +49,7 @@ import {
   selectLookupLanguage
 } from './lib/wordlist-helpers.js'
 import { buildGrammarData } from './lib/resources-helpers.js'
+import aeneidTree from './fixtures/treebank-aeneid-6-1.json'
 
 const EMPTY_POPUP_STATES = {
   loading: { lemma: '', lang: '', title: 'Looking up', desc: 'Alpheios is querying lexical data.' },
@@ -103,6 +104,7 @@ const EMPTY_WORDLIST = {
 }
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
+const POC_NATIVE_TREE = true
 
 const SETTINGS_SHELL = {
   tabs: [
@@ -401,11 +403,28 @@ function liveGrammarFallback () {
 }
 
 function liveTreeFallback () {
+  if (POC_NATIVE_TREE) {
+    return {
+      kind: 'native',
+      ref: `<strong>${aeneidTree.cite}</strong> · ${aeneidTree.provider}`,
+      text: aeneidTree.text,
+      textStrip: aeneidTree.text,
+      nodes: aeneidTree.nodes,
+      edges: aeneidTree.edges,
+      highlightId: 2,
+      footerMeta: `${aeneidTree.cite} · ${Math.max(0, aeneidTree.nodes.length - 1)} tokens · ${aeneidTree.provider}`,
+      treebankSrc: null,
+      officialReaderUrl: OFFICIAL_READER_URL,
+      isOfficialTextsPage: false,
+      suppressTree: false
+    }
+  }
   if (live.state.value === 'idle') {
     return {
       ref: '',
       textStrip: '',
       nodes: [],
+      edges: [],
       footerMeta: 'Look up or select a word to load treebank data',
       treebankSrc: null,
       officialReaderUrl: OFFICIAL_READER_URL,
@@ -418,6 +437,7 @@ function liveTreeFallback () {
     ref: '',
     textStrip: '',
     nodes: [],
+    edges: [],
     footerMeta: 'No treebank for this page',
     treebankSrc: null,
     officialReaderUrl: OFFICIAL_READER_URL,

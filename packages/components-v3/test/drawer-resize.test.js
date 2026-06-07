@@ -59,3 +59,20 @@ test('dynamic drawer sizes are passed through CSS variables', () => {
     '--alph-drawer-panel-width': '460px'
   })
 })
+
+test('drawer drag width is not capped by the viewport or a fixed maximum', () => {
+  assert.equal(nextDrawerWidth({
+    position: 'right',
+    startWidth: 900,
+    startX: 500,
+    currentX: -700,
+    viewportWidth: 1200
+  }), 2100)
+})
+
+test('drawer size style preserves widths above the previous maximum', () => {
+  assert.deepEqual(drawerSizeStyle(1200), {
+    '--alph-drawer-width': '1200px',
+    '--alph-drawer-panel-width': '1136px'
+  })
+})
