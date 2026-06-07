@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpheios.net/schemas/treebank-sentence.schema.json",
+  "title": "TreebankSentence",
+  "description": "One dependency-parsed sentence, cleaned from Perseus treebank data (AGLDT XML or UD Perseus CoNLL-U) into the {nodes, edges} shape consumed by the native SVG renderer. Runtime-only fields (layout x/y, isHighlighted) are intentionally NOT part of this schema. See TREEBANK-DATA-FIELDS.md and TREEBANK-SCHEMA.md.",
+  "type": "object",
+  "required": ["id", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Sentence ID within the document. Source: AGLDT <sentence @id> / CoNLL-U '# sent_id ='."
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-based ordinal of this sentence in the document, for the pager ('1 of 756'). Derived during cleaning."
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total sentence count in the document, for the pager. Derived during cleaning."
+    },
+    "docId": {
+      "type": "string",
+      "description": "Document / text identifier. Source: AGLDT <sentence @document_id> / a CTS URN."
+    },
+    "cite": {
+      "type": "string",
+      "description": "Passage citation shown in the footer = the source @subdoc, e.g. '6.1'. The human-readable work name (e.g. 'Aeneid') is derived from docId at render time, not stored here. Source: AGLDT <sentence @subdoc> / CoNLL-U '# citation'."
+    },
+    "text": {
+      "type": "string",
+      "description": "Full plaintext of the sentence for the bottom text-strip. Source: CoNLL-U '# text =', or concatenated node forms."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Data provenance shown in the footer, e.g. 'Perseus treebank'."
+    },
+    "version": {
+      "type": "string",
+      "description": "Dataset version shown in the footer, e.g. '2.1'."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "All words/tokens in the sentence, one node each.",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Dependency arcs. Counting the synthesized virtual root (node id 0), a well-formed tree of N nodes has exactly N-1 edges. This count invariant is NOT enforced by JSON Schema; check it in a custom validator.",
+      "items": { "$ref": "#/$defs/edge" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["id", "form", "isRoot"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$comment": "pos is required for every real token, but optional for the synthesized virtual root and for artificial/elliptical nodes that have no surface morphology.",
+          "if": { "not": { "properties": { "artificial": { "const": true } }, "required": ["artificial"] } },
+          "then": { "required": ["pos"] }
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Word ID, unique within the sentence. Used as the lookup key for edge.from / edge.to (do NOT assume id == array index). Id 0 is reserved for the synthesized virtual root. Real tokens: word/@id or CoNLL-U column 1 (>= 1)."
+        },
+        "form": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Surface token shown as the node's large text, e.g. 'fatur'. May carry a leading hyphen for split enclitics ('-que'). The virtual root uses the marker '[0]'. Source: word/@form or CoNLL-U column 2."
+        },
+        "lemma": {
+          "type": "string",
+          "description": "Dictionary headword (optional; for hover / secondary display). Source: word/@lemma or CoNLL-U column 3."
+        },
+        "pos": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Readable part of speech, e.g. 'NOUN' / 'VERB'. Recommended vocabulary is UD UPOS (NOUN VERB ADJ ADV PRON DET ADP AUX CCONJ SCONJ NUM PART INTJ PROPN PUNCT SYM X). Not enum-constrained because AGLDT decodes to a different short tagset. Source: decoded postag[0] / CoNLL-U UPOS column 4.",
+          "examples": ["NOUN", "VERB", "ADJ", "PRON", "CCONJ"]
+        },
+        "morph": {
+          "type": "string",
+          "description": "Short morphology summary shown as the node's small text, e.g. 'ACC.PL' or '1SG'. Pick only salient features; empty for invariant words. Source: decoded postag[1..8] / CoNLL-U FEATS column 6."
+        },
+        "label": {
+          "type": "string",
+          "description": "Pre-composed small-text line (= pos + ' · ' + morph), e.g. 'NOUN · ACC.PL'. Optional convenience; the renderer can also compose it from pos + morph."
+        },
+        "isRoot": {
+          "type": "boolean",
+          "description": "True ONLY for the synthesized virtual root (node id 0). Every source token whose head == 0 becomes a child of node 0 (there may be several: the main predicate or top coordinator, plus terminal punctuation). Exactly one node per sentence must have isRoot true (invariant NOT enforced by JSON Schema)."
+        },
+        "artificial": {
+          "type": "boolean",
+          "description": "True for nodes with no real surface form: the synthesized virtual root (id 0) and AGLDT elliptical nodes (forms like '[0]', '[1]'). When true, 'pos' is not required. Defaults to false when absent.",
+          "default": false
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to", "relation"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Parent (head) node id. 0 means the child attaches to the virtual root (source head == 0). Must reference an existing node.id (referential integrity NOT enforced by JSON Schema). Source: word/@head."
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Child node id (= this word's own id). Always a real token (>= 1); the virtual root is never a child. Must reference an existing node.id. Source: word/@id."
+        },
+        "relation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Dependency relation label drawn on the arc, e.g. 'OBJ' / 'ATR' / 'SBJ'. AGLDT tagset (PRED SBJ OBJ ATR ADV ... possibly with _CO / _AP suffixes, plus Aux*) differs from UD deprel; kept as a free string. Source: word/@relation / CoNLL-U DEPREL column 8."
+        }
+      }
+    }
+  }
+}
