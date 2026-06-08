@@ -49,7 +49,9 @@ import {
   selectLookupLanguage
 } from './lib/wordlist-helpers.js'
 import { buildGrammarData } from './lib/resources-helpers.js'
-import aeneidTree from './fixtures/treebank-aeneid-6-1.json'
+import { buildTreebankResource } from './lib/treebank-data.js'
+import { loadTreebankData } from './lib/treebank-loader.js'
+import aeneidTreebank from './fixtures/treebank-v21-phi0690-phi003-lat1.json'
 
 const EMPTY_POPUP_STATES = {
   loading: { lemma: '', lang: '', title: 'Looking up', desc: 'Alpheios is querying lexical data.' },
@@ -105,6 +107,11 @@ const EMPTY_WORDLIST = {
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
 const POC_NATIVE_TREE = true
+const USE_TREEBANK_API = true // Use real API instead of fixture
+
+// Treebank API state
+const treebankSentence = ref(null)
+const treebankLoading = ref(false)
 
 const SETTINGS_SHELL = {
   tabs: [
@@ -331,7 +338,10 @@ function onSearchEnter (value) {
 
 const wl = useWordList()
 const infl = useInflections()
-const resources = useResources({ getLanguageCode: () => selectedLookupLang.value })
+const resources = useResources({
+  getLanguageCode: () => selectedLookupLang.value,
+  treebankCorpora: [aeneidTreebank]
+})
 const settingsPageRef = ref(null)
 const authPageRef = ref(null)
 
@@ -402,18 +412,57 @@ function liveGrammarFallback () {
   })
 }
 
+async function loadTreebankFromAPI(docId, sentenceId) {
+  if (!USE_TREEBANK_API) return null
+
+  treebankLoading.value = true
+  try {
+    const sentence = await loadTreebankData({
+      docId,
+      sentenceId: String(sentenceId),
+      mode: 'api'
+    })
+    treebankSentence.value = sentence
+    return sentence
+  } catch (err) {
+    console.warn('[App] Treebank load failed:', err)
+    return null
+  } finally {
+    treebankLoading.value = false
+  }
+}
+
 function liveTreeFallback () {
   if (POC_NATIVE_TREE) {
+    // Use API if enabled
+    if (USE_TREEBANK_API && treebankSentence.value) {
+      return {
+        ...buildTreebankResource(treebankSentence.value, { wordIds: [] }),
+        footerMeta: `${treebankSentence.value.cite} · ${treebankSentence.value.provider} · Loaded from API`,
+        officialReaderUrl: OFFICIAL_READER_URL,
+        isOfficialTextsPage: false,
+        suppressTree: false
+      }
+    }
+    // If API enabled but no data, show error
+    if (USE_TREEBANK_API) {
+      return {
+        ref: '',
+        textStrip: '',
+        nodes: [],
+        edges: [],
+        footerMeta: 'Failed to load from API',
+        treebankSrc: null,
+        officialReaderUrl: OFFICIAL_READER_URL,
+        isOfficialTextsPage: false,
+        suppressTree: false,
+        kind: 'error'
+      }
+    }
+    // Fallback to fixture only if API is disabled
     return {
-      kind: 'native',
-      ref: `<strong>${aeneidTree.cite}</strong> · ${aeneidTree.provider}`,
-      text: aeneidTree.text,
-      textStrip: aeneidTree.text,
-      nodes: aeneidTree.nodes,
-      edges: aeneidTree.edges,
-      highlightId: 2,
-      footerMeta: `${aeneidTree.cite} · ${Math.max(0, aeneidTree.nodes.length - 1)} tokens · ${aeneidTree.provider}`,
-      treebankSrc: null,
+      ...buildTreebankResource(aeneidTreebank[0], { wordIds: [] }),
+      footerMeta: `${aeneidTreebank[0].cite} · ${aeneidTreebank[0].provider} · Fixture data (API disabled)`,
       officialReaderUrl: OFFICIAL_READER_URL,
       isOfficialTextsPage: false,
       suppressTree: false
@@ -507,6 +556,14 @@ onMounted(() => {
     { immediate: true }
   )
   onScopeDispose(() => { try { unwatch() } catch {} })
+})
+
+// Load initial treebank sentence from API
+onMounted(async () => {
+  if (USE_TREEBANK_API) {
+    // Load Homer Odyssey first sentence by index
+    await loadTreebankFromAPI('tlg0012.tlg002.perseus-grc1', 1)
+  }
 })
 
 
@@ -685,7 +742,7 @@ const grammarFooterMeta = computed(() =>
       <MorphPage       v-else-if="page === 'morph'"  :data="lookupData" />
       <InflectionsPage v-else-if="page === 'inflections'" :data="inflectionsData" />
       <ResourcesPage   v-else-if="page === 'usage'"  mode="usage"   :data="usagePageData" />
-      <ResourcesPage   v-else-if="page === 'tree'"   mode="tree"    :data="treePageData" />
+      <ResourcesPage   v-else-if="page === 'tree'"   mode="tree"    :data="treePageData" @load-treebank="loadTreebankFromAPI" />
       <ResourcesPage   v-else-if="page === 'grammar'" mode="grammar" :data="grammarPageData" @footer-meta="grammarFooterMetaLive = $event" />
       <WordListPage
         v-else-if="page === 'wordlist'"

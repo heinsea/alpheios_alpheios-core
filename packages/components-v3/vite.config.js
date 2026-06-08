@@ -56,6 +56,7 @@ export default defineConfig({
   },
   server: {
     // sandbox.html is a dev-only preview page (Stage 1).
-    open: '/sandbox.html'
+    // treebank-demo.html is the treebank POC demo page.
+    open: '/treebank-demo.html'
   }
 })

@@ -1,0 +1,366 @@
+{
+  "greek": [
+    {
+      "docId": "tlg0020.tlg003.perseus-grc1",
+      "author": "Demosthenes",
+      "title": "De Corona",
+      "total": 255,
+      "books": 1,
+      "citeRange": "1.1-1.3 - 1.478-1.480"
+    },
+    {
+      "docId": "tlg0020.tlg001.perseus-grc1",
+      "author": "Demosthenes",
+      "title": "Olynthiacs",
+      "total": 436,
+      "books": 1,
+      "citeRange": "1.1-1.4 - 1.1021-1.1022"
+    },
+    {
+      "docId": "tlg0020.tlg002.perseus-grc1",
+      "author": "Demosthenes",
+      "title": "Philippics",
+      "total": 491,
+      "books": 26,
+      "citeRange": "1 - 800"
+    },
+    {
+      "docId": "tlg0016.tlg001.perseus-grc1.1",
+      "author": "Herodotus",
+      "title": "Histories",
+      "total": 1555,
+      "books": 1,
+      "citeRange": "1.1 - 1.216"
+    },
+    {
+      "docId": "tlg0013.tlg002.perseus-grc1",
+      "author": "Hesiod",
+      "title": "Works and Days",
+      "total": 255,
+      "books": 1,
+      "citeRange": "1-495 - 1-495"
+    },
+    {
+      "docId": "tlg0012.tlg001.perseus-grc1",
+      "author": "Homer",
+      "title": "Iliad",
+      "total": 8408,
+      "books": 24,
+      "citeRange": "1.1-1.7 - 9.712-9.713"
+    },
+    {
+      "docId": "tlg0012.tlg002.perseus-grc1",
+      "author": "Homer",
+      "title": "Odyssey",
+      "total": 6709,
+      "books": 24,
+      "citeRange": "1.1-1.2 - 9.565-9.566"
+    },
+    {
+      "docId": "tlg0059.tlg001.perseus-grc1",
+      "author": "Plato",
+      "title": "Euthyphro",
+      "total": 425,
+      "books": 1,
+      "citeRange": "1 - 1"
+    },
+    {
+      "docId": "tlg0060.tlg001.perseus-grc3.11",
+      "author": "Plato",
+      "title": "Republic",
+      "total": 991,
+      "books": 1,
+      "citeRange": "11.1.1 - 11.92.5"
+    },
+    {
+      "docId": "tlg0007.tlg004.perseus-grc1",
+      "author": "Plutarch",
+      "title": "Life of Alcibiades",
+      "total": 434,
+      "books": 31,
+      "citeRange": "1.1 - 31"
+    },
+    {
+      "docId": "tlg0007.tlg015.perseus-grc1",
+      "author": "Plutarch",
+      "title": "Life of Pericles",
+      "total": 431,
+      "books": 40,
+      "citeRange": "1.1 - 39.5"
+    },
+    {
+      "docId": "tlg0011.tlg001.perseus-grc2",
+      "author": "Sophocles",
+      "title": "Ajax",
+      "total": 667,
+      "books": 626,
+      "citeRange": "1-3 - 1275-1278"
+    },
+    {
+      "docId": "tlg0011.tlg002.perseus-grc2",
+      "author": "Sophocles",
+      "title": "Antigone",
+      "total": 685,
+      "books": 656,
+      "citeRange": "1-3 - 1350-1353"
+    },
+    {
+      "docId": "tlg0011.tlg003.perseus-grc1",
+      "author": "Sophocles",
+      "title": "Electra",
+      "total": 783,
+      "books": 750,
+      "citeRange": "1-2 - 1420-1421"
+    },
+    {
+      "docId": "tlg0011.tlg004.perseus-grc1",
+      "author": "Sophocles",
+      "title": "Oedipus at Colonus",
+      "total": 929,
+      "books": 870,
+      "citeRange": "1-3 - 1528-1530"
+    },
+    {
+      "docId": "tlg0011.tlg005.perseus-grc2",
+      "author": "Sophocles",
+      "title": "Oedipus Rex",
+      "total": 926,
+      "books": 856,
+      "citeRange": "1-3 - 1508-1510"
+    },
+    {
+      "docId": "tlg0008.tlg001.perseus-grc1.12",
+      "author": "Thucydides",
+      "title": "Hellenica",
+      "total": 1050,
+      "books": 1,
+      "citeRange": "12.1, 510a1 - 12.81"
+    },
+    {
+      "docId": "tlg0008.tlg001.perseus-grc1.13",
+      "author": "Thucydides",
+      "title": "Hellenica",
+      "total": 1473,
+      "books": 2,
+      "citeRange": "13.1 - 13.95"
+    },
+    {
+      "docId": "tlg0003.tlg001.perseus-grc1.1",
+      "author": "Thucydides",
+      "title": "History of the Peloponnesian War",
+      "total": 942,
+      "books": 1,
+      "citeRange": "1.1.1 - 1.146"
+    },
+    {
+      "docId": "tlg0096.tlg002.opp-grc2.1-53",
+      "author": "Unknown",
+      "title": "tlg0096.tlg002.opp-grc2.1-53",
+      "total": 366,
+      "books": 53,
+      "citeRange": "1 - 53"
+    },
+    {
+      "docId": "tlg0540.tlg001.perseus-grc1",
+      "author": "Unknown",
+      "title": "tlg0540.tlg001.perseus-grc1",
+      "total": 134,
+      "books": 1,
+      "citeRange": "1-50 - 1-50"
+    },
+    {
+      "docId": "tlg0540.tlg014.perseus-grc1",
+      "author": "Unknown",
+      "title": "tlg0540.tlg014.perseus-grc1",
+      "total": 101,
+      "books": 1,
+      "citeRange": "1-47 - 1-47"
+    },
+    {
+      "docId": "tlg0540.tlg015.perseus-grc1",
+      "author": "Unknown",
+      "title": "tlg0540.tlg015.perseus-grc1",
+      "total": 17,
+      "books": 1,
+      "citeRange": "1-12 - 1-12"
+    },
+    {
+      "docId": "tlg0540.tlg023.perseus-grc1",
+      "author": "Unknown",
+      "title": "tlg0540.tlg023.perseus-grc1",
+      "total": 46,
+      "books": 16,
+      "citeRange": "1 - 16"
+    },
+    {
+      "docId": "tlg0543.tlg001.perseus-grc1",
+      "author": "Unknown",
+      "title": "tlg0543.tlg001.perseus-grc1",
+      "total": 999,
+      "books": 1,
+      "citeRange": "1.1 - 1.88"
+    },
+    {
+      "docId": "tlg0548.tlg001.perseus-grc1.1.1.1-1.4.1",
+      "author": "Unknown",
+      "title": "tlg0548.tlg001.perseus-grc1.1.1.1-1.4.1",
+      "total": 51,
+      "books": 2,
+      "citeRange": "1.1.1 - 1.4.1"
+    },
+    {
+      "docId": "tlg0085.tlg001.perseus-grc2",
+      "author": "Xenophon",
+      "title": "Anabasis",
+      "total": 529,
+      "books": 515,
+      "citeRange": "1-4 - 1069-1073"
+    },
+    {
+      "docId": "tlg0085.tlg002.perseus-grc2",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg002.perseus-grc2",
+      "total": 479,
+      "books": 467,
+      "citeRange": "1-7 - 1076"
+    },
+    {
+      "docId": "tlg0085.tlg003.perseus-grc2",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg003.perseus-grc2",
+      "total": 590,
+      "books": 574,
+      "citeRange": "1-2 - 1091-1093"
+    },
+    {
+      "docId": "tlg0085.tlg004.perseus-grc2",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg004.perseus-grc2",
+      "total": 513,
+      "books": 502,
+      "citeRange": "1-3 - 1080-1084"
+    },
+    {
+      "docId": "tlg0085.tlg005.perseus-grc1",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg005.perseus-grc1",
+      "total": 813,
+      "books": 786,
+      "citeRange": "1-7 - 1672-1673"
+    },
+    {
+      "docId": "tlg0085.tlg006.perseus-grc2",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg006.perseus-grc2",
+      "total": 502,
+      "books": 482,
+      "citeRange": "1-2 - 942-945"
+    },
+    {
+      "docId": "tlg0085.tlg007.perseus-grc1",
+      "author": "Xenophon",
+      "title": "tlg0085.tlg007.perseus-grc1",
+      "total": 526,
+      "books": 70,
+      "citeRange": "1 - 1044"
+    }
+  ],
+  "latin": [
+    {
+      "docId": "phi1351.phi005.perseus-lat1",
+      "author": "Augustine",
+      "title": "Confessiones",
+      "total": 197,
+      "books": 1,
+      "citeRange": "urn:cts:latinLit:phi1351.phi005.perseus-lat1 - urn:cts:latinLit:phi1351.phi005.perseus-lat1"
+    },
+    {
+      "docId": "phi0448.phi001.perseus-lat1",
+      "author": "Caesar",
+      "title": "Gallic War",
+      "total": 71,
+      "books": 1,
+      "citeRange": "2.1 - 2.33"
+    },
+    {
+      "docId": "phi0474.phi013.perseus-lat1",
+      "author": "Cicero",
+      "title": "In Catilinam",
+      "total": 327,
+      "books": 3,
+      "citeRange": "1.1 - 2.11"
+    },
+    {
+      "docId": "phi1348.abo012.perseus-lat1",
+      "author": "Jerome",
+      "title": "Vita Hilarionis",
+      "total": 347,
+      "books": 1,
+      "citeRange": "1.1-154.4 - 1.1-154.4"
+    },
+    {
+      "docId": "phi0620.phi001.perseus-lat1",
+      "author": "Livy",
+      "title": "Ab Urbe Condita",
+      "total": 364,
+      "books": 1,
+      "citeRange": "1.1 - 1.22"
+    },
+    {
+      "docId": "phi0959.phi006.perseus-lat1",
+      "author": "Ovid",
+      "title": "Metamorphoses",
+      "total": 311,
+      "books": 1,
+      "citeRange": "1.1-1.2 - 1.775-1.778"
+    },
+    {
+      "docId": "phi0975.phi001.perseus-lat1",
+      "author": "Persius",
+      "title": "Saturae",
+      "total": 583,
+      "books": 63,
+      "citeRange": "1:prologus - 3:epilogus"
+    },
+    {
+      "docId": "phi0972.phi001.perseus-lat1",
+      "author": "Petronius",
+      "title": "Satyricon",
+      "total": 1108,
+      "books": 53,
+      "citeRange": "26 - 78"
+    },
+    {
+      "docId": "phi0631.phi001.perseus-lat1",
+      "author": "Sallust",
+      "title": "Bellum Catilinae",
+      "total": 687,
+      "books": 61,
+      "citeRange": "1 - 61"
+    },
+    {
+      "docId": "phi1221.phi007.perseus-lat1",
+      "author": "Tacitus",
+      "title": "Agricola",
+      "total": 116,
+      "books": 1,
+      "citeRange": "urn:cts:latinLit:phi1221.phi007.perseus-lat1 - urn:cts:latinLit:phi1221.phi007.perseus-lat1"
+    },
+    {
+      "docId": "tlg0031.tlg027.perseus-lat1",
+      "author": "Unknown",
+      "title": "Apocalypse (Vulgate)",
+      "total": 610,
+      "books": 22,
+      "citeRange": "1 - 22"
+    },
+    {
+      "docId": "phi0690.phi003.perseus-lat1",
+      "author": "Vergil",
+      "title": "Aeneid",
+      "total": 177,
+      "books": 1,
+      "citeRange": "6.1 - 6.295"
+    }
+  ]
+}

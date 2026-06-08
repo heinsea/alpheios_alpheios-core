@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { layoutDependencyTree } from '../lib/treebank-layout.js'
 
 const props = defineProps({
@@ -24,7 +24,96 @@ const hasActiveHighlight = computed(() => {
   return props.highlightId !== null
 })
 
+// Zoom/pan state
+const zoom = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const isPanning = ref(false)
+const lastMouseX = ref(0)
+const lastMouseY = ref(0)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const hasDragged = ref(false)
+
+function handleWheel(event) {
+  event.preventDefault()
+  const delta = -event.deltaY * 0.001
+  const newZoom = Math.min(Math.max(0.5, zoom.value + delta), 3)
+
+  // Zoom toward mouse position
+  const rect = event.currentTarget.getBoundingClientRect()
+  const mouseX = event.clientX - rect.left
+  const mouseY = event.clientY - rect.top
+
+  const factor = newZoom / zoom.value
+  panX.value = mouseX - (mouseX - panX.value) * factor
+  panY.value = mouseY - (mouseY - panY.value) * factor
+
+  zoom.value = newZoom
+}
+
+function handleMouseDown(event) {
+  if (event.button === 0) { // Left button
+    isPanning.value = true
+    lastMouseX.value = event.clientX
+    lastMouseY.value = event.clientY
+    dragStartX.value = event.clientX
+    dragStartY.value = event.clientY
+    hasDragged.value = false
+    event.preventDefault()
+  }
+}
+
+function handleMouseMove(event) {
+  if (isPanning.value) {
+    const dx = event.clientX - lastMouseX.value
+    const dy = event.clientY - lastMouseY.value
+
+    // Check if dragged more than 3px (to distinguish from click)
+    const totalDrag = Math.abs(event.clientX - dragStartX.value) + Math.abs(event.clientY - dragStartY.value)
+    if (totalDrag > 3) {
+      hasDragged.value = true
+    }
+
+    panX.value += dx
+    panY.value += dy
+    lastMouseX.value = event.clientX
+    lastMouseY.value = event.clientY
+  }
+}
+
+function handleMouseUp(event) {
+  isPanning.value = false
+
+  // If didn't drag much, treat as click and propagate to token
+  if (!hasDragged.value) {
+    // Let the event propagate naturally to token click handlers
+  }
+}
+
+function handleDoubleClick(event) {
+  // Double click on background to reset zoom/pan
+  if (event.target.tagName === 'svg' || event.target.tagName === 'g') {
+    resetZoom()
+  }
+}
+
+function resetZoom() {
+  zoom.value = 1
+  panX.value = 0
+  panY.value = 0
+}
+
+// Expose methods for parent
+defineExpose({
+  zoomIn() { zoom.value = Math.min(3, zoom.value + 0.2) },
+  zoomOut() { zoom.value = Math.max(0.5, zoom.value - 0.2) },
+  resetZoom
+})
+
 function selectToken (id) {
+  // Don't select if user was dragging
+  if (hasDragged.value) return
   emit('select', id)
 }
 
@@ -34,17 +123,30 @@ function isTokenDimmed (token) {
   }
   return hasActiveHighlight.value && !token.focusRole
 }
+
 </script>
 
 <template>
-  <svg
-    class="alph-dependency-tree"
-    :width="layout.width"
-    :height="layout.height"
-    :viewBox="`0 0 ${layout.width} ${layout.height}`"
-    role="img"
-    :aria-label="ariaLabel"
-  >
+  <div class="alph-dependency-tree-container">
+    <svg
+      class="alph-dependency-tree"
+      :width="layout.width"
+      :height="layout.height"
+      :viewBox="`0 0 ${layout.width} ${layout.height}`"
+      role="img"
+      :aria-label="ariaLabel"
+      @wheel="handleWheel"
+      @mousedown="handleMouseDown"
+      @mousemove="handleMouseMove"
+      @mouseup="handleMouseUp"
+      @mouseleave="handleMouseUp"
+      @dblclick="handleDoubleClick"
+      :style="{
+        cursor: isPanning ? 'grabbing' : 'grab',
+        transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+        transformOrigin: 'top left'
+      }"
+    >
     <g class="alph-dependency-tree__arcs">
       <g
         v-for="arc in layout.arcs"
@@ -155,9 +257,14 @@ function isTokenDimmed (token) {
       </g>
     </g>
   </svg>
+  </div>
 </template>
 
 <style scoped>
+.alph-dependency-tree-container {
+  display: inline-block;
+}
+
 .alph-dependency-tree {
   --alph-tree-accent: #00695C;
   --alph-tree-pos-accent: #F4511E;

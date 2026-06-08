@@ -19,11 +19,14 @@ import Icon from '../primitives/Icon.vue'
 import DependencyTree from '../primitives/DependencyTree.vue'
 import { uiStore } from '../store/ui-store.js'
 import { summarizeTreebankPos } from '../lib/treebank-pos.js'
+import treebankCatalog from '../lib/treebank-catalog.json'
 
 const props = defineProps({
   mode: { type: String, required: true }, // 'usage' | 'grammar' | 'tree'
   data: { type: Object, required: true }
 })
+
+const emit = defineEmits(['footer-meta', 'load-treebank'])
 
 /* ─── Usage mode local state ─── */
 const usage = computed(() => props.data.usage || { authorChips: [], groups: [], word: '', totalQuotes: 0, footerMeta: '', officialReaderUrl: '', isOfficialTextsPage: false })
@@ -138,6 +141,119 @@ const tree = computed(() => ({
   ...(props.data.tree || {})
 }))
 const treeText = computed(() => tree.value.text || tree.value.textStrip || '')
+
+// Query state
+const queryLang = ref('greek')
+const queryDocId = ref('tlg0012.tlg002.perseus-grc1')
+const queryCite = ref('1.1')
+const queryLoading = ref(false)
+const availableCitations = ref([])
+const citationsLoading = ref(false)
+const sentenceIndex = ref([]) // Store full sentence metadata
+
+const treebankWorks = computed(() => {
+  const lang = queryLang.value
+  return treebankCatalog[lang] || []
+})
+
+const selectedWork = computed(() =>
+  treebankWorks.value.find(w => w.docId === queryDocId.value)
+)
+
+// Load available citations when docId changes
+watch(queryDocId, async (newDocId) => {
+  if (!newDocId) return
+  citationsLoading.value = true
+  availableCitations.value = []
+  sentenceIndex.value = []
+
+  try {
+    const lang = queryLang.value
+    const url = `http://localhost:3000/${lang}/${newDocId}`
+    const response = await fetch(url)
+    if (response.ok) {
+      const index = await response.json()
+      sentenceIndex.value = index.sentences || []
+
+      // Group by book.chapter
+      const citeSet = new Set()
+      index.sentences?.forEach(s => {
+        // Extract book.chapter from cite (e.g., "1.1" from "1.1-1.2")
+        const parts = s.cite.split('.')[0].split('-')[0] // Get "1" from "1.1-1.2"
+        const chapter = s.cite.match(/^(\d+\.\d+)/)?.[1] // Get "1.1" from "1.1-1.2"
+        if (chapter) {
+          citeSet.add(chapter)
+        } else if (parts) {
+          citeSet.add(parts)
+        }
+      })
+      availableCitations.value = Array.from(citeSet).sort((a, b) => {
+        const [aBook, aChap = '0'] = a.split('.').map(Number)
+        const [bBook, bChap = '0'] = b.split('.').map(Number)
+        return aBook - bBook || aChap - bChap
+      })
+
+      // Set first citation as default
+      if (availableCitations.value.length > 0) {
+        queryCite.value = availableCitations.value[0]
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load citations:', err)
+  } finally {
+    citationsLoading.value = false
+  }
+}, { immediate: true })
+
+// Watch lang change to update docId
+watch(queryLang, (newLang) => {
+  const works = treebankCatalog[newLang] || []
+  if (works.length > 0) {
+    queryDocId.value = works[0].docId
+  }
+})
+
+async function loadTreebankSentence() {
+  if (!queryDocId.value || !queryCite.value) return
+  queryLoading.value = true
+  try {
+    // Find sentence that starts with the selected cite
+    const sentence = sentenceIndex.value.find(s => s.cite.startsWith(queryCite.value))
+    if (sentence) {
+      // Use the sentence's index for loading
+      emit('load-treebank', queryDocId.value, sentence.index)
+    } else {
+      // Fallback: try the cite as-is
+      emit('load-treebank', queryDocId.value, queryCite.value)
+    }
+  } finally {
+    setTimeout(() => { queryLoading.value = false }, 500)
+  }
+}
+
+// Navigation
+const currentCiteIndex = computed(() =>
+  availableCitations.value.indexOf(queryCite.value)
+)
+const canGoPrevious = computed(() => currentCiteIndex.value > 0)
+const canGoNext = computed(() =>
+  currentCiteIndex.value >= 0 && currentCiteIndex.value < availableCitations.value.length - 1
+)
+
+function loadPreviousSentence() {
+  if (canGoPrevious.value) {
+    queryCite.value = availableCitations.value[currentCiteIndex.value - 1]
+    loadTreebankSentence()
+  }
+}
+
+function loadNextSentence() {
+  if (canGoNext.value) {
+    queryCite.value = availableCitations.value[currentCiteIndex.value + 1]
+    loadTreebankSentence()
+  }
+}
+
 const selectedTreeTokenIds = ref([])
 const selectedTreePos = ref([])
 const treePosSummary = computed(() => summarizeTreebankPos(tree.value.nodes || []))
@@ -154,6 +270,9 @@ const selectedTreeRelations = computed(() => selectedTreeTokens.value.map(token 
   token,
   ...relationsForTreeToken(token)
 })))
+const initialTreeHighlightIds = computed(() => (
+  Array.isArray(tree.value.highlightIds) ? tree.value.highlightIds.map(Number).filter(Number.isFinite) : []
+))
 
 function relationsForTreeToken (token) {
   const id = Number(token.id)
@@ -168,9 +287,9 @@ function relationsForTreeToken (token) {
   return { head, dependents }
 }
 
-watch(() => tree.value.id, () => {
-  selectedTreeTokenIds.value = []
-})
+watch(() => [tree.value.id, initialTreeHighlightIds.value.join(',')], () => {
+  selectedTreeTokenIds.value = initialTreeHighlightIds.value
+}, { immediate: true })
 
 function toggleTreePos (pos) {
   selectedTreePos.value = selectedTreePos.value.includes(pos)
@@ -205,12 +324,11 @@ defineExpose({ footerMeta })
 // Push footer text up to App so the drawer footer stays in sync. A parent
 // computed reading this via the template ref does not re-track when only the
 // child's local state (e.g. selectedBookId) changes, so emit it explicitly.
-const emit = defineEmits(['footer-meta'])
 watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 </script>
 
 <template>
-  <div class="alph-resources" :class="{ 'alph-resources--fill': mode === 'grammar' }">
+  <div class="alph-resources" :class="{ 'alph-resources--fill': mode === 'grammar', 'alph-resources--tree': mode === 'tree' }">
 
     <!-- ============ USAGE ============ -->
     <template v-if="mode === 'usage'">
@@ -332,6 +450,66 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 
     <!-- ============ TREE ============ -->
     <template v-else-if="mode === 'tree'">
+      <div class="alph-resources__tree-container">
+      <!-- Query interface - compact -->
+      <div class="alph-resources__tree-query">
+        <div class="alph-resources__tree-query-compact">
+          <select v-model="queryLang" class="alph-resources__tree-query-lang">
+            <option value="latin">Latin</option>
+            <option value="greek">Greek</option>
+          </select>
+          <select v-model="queryDocId" class="alph-resources__tree-query-text">
+            <option v-for="work in treebankWorks" :key="work.docId" :value="work.docId">
+              {{ work.author }} — {{ work.title }}
+            </option>
+          </select>
+          <select
+            v-if="availableCitations.length"
+            v-model="queryCite"
+            class="alph-resources__tree-query-cite"
+            :disabled="citationsLoading"
+          >
+            <option v-for="cite in availableCitations" :key="cite" :value="cite">
+              {{ cite }}
+            </option>
+          </select>
+          <button
+            @click="loadTreebankSentence"
+            class="alph-resources__tree-query-btn"
+            :disabled="queryLoading || citationsLoading"
+          >
+            {{ queryLoading ? 'Loading...' : 'Load' }}
+          </button>
+          <button
+            v-if="tree.nodes?.length"
+            @click="loadPreviousSentence"
+            class="alph-resources__tree-nav-btn"
+            :disabled="!canGoPrevious"
+            title="Previous sentence"
+          >
+            ←
+          </button>
+          <button
+            v-if="tree.nodes?.length"
+            @click="loadNextSentence"
+            class="alph-resources__tree-nav-btn"
+            :disabled="!canGoNext"
+            title="Next sentence"
+          >
+            →
+          </button>
+        </div>
+        <div class="alph-resources__tree-query-info">
+          <template v-if="selectedWork">
+            {{ selectedWork.citeRange }} · {{ selectedWork.books }} book(s)
+            <span v-if="availableCitations.length"> · {{ availableCitations.length }} sections available</span>
+          </template>
+          <template v-else>
+            Select a text to view treebank data
+          </template>
+        </div>
+      </div>
+
       <!-- Native dependency tree POC (structured nodes/edges data) -->
       <template v-if="tree.nodes && tree.nodes.length">
         <div class="alph-resources__tree-toolbar">
@@ -385,6 +563,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
               @select="selectTreeToken"
             />
           </div>
+          <!-- Inspector as floating overlay at bottom -->
           <div v-if="selectedTreeTokens.length" class="alph-resources__tree-inspector">
             <div v-if="selectedTreeTokens.length === 1" class="alph-resources__tree-inspector-main">
               <strong class="lang-classical">{{ selectedTreeToken.form }}</strong>
@@ -392,11 +571,11 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
               <small v-if="selectedTreeToken.morph">{{ selectedTreeToken.morph }}</small>
             </div>
             <div v-else class="alph-resources__tree-inspector-main">
-              <strong>Selected</strong>
-              <span>{{ selectedTreeTokens.map(token => token.pos || 'TOKEN').join(' · ') }}</span>
+              <strong>{{ selectedTreeTokens.length }} tokens selected</strong>
+              <small>{{ selectedTreeTokens.map(t => t.form).join(' · ') }}</small>
             </div>
             <div class="alph-resources__tree-inspector-links">
-              <span class="alph-resources__tree-port-legend">
+              <span v-if="selectedTreeTokens.length === 1" class="alph-resources__tree-port-legend">
                 <i class="alph-resources__tree-port alph-resources__tree-port--head" />
                 head
                 <i class="alph-resources__tree-port alph-resources__tree-port--dependent" />
@@ -405,15 +584,18 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
               <template v-for="item in selectedTreeRelations" :key="item.token.id">
                 <span>
                   <b class="lang-classical">{{ item.token.form }}</b>
+                  <span style="font-size: 9px; color: var(--on-surface-variant);">{{ item.token.pos }}</span>
                   <template v-if="item.head">
-                    Head:
+                    → Head:
                     <b class="lang-classical">{{ item.head.token?.form || '[0]' }}</b>
                     <em>{{ item.head.relation }}</em>
                   </template>
-                  <template v-else>Root</template>
+                  <template v-else>
+                    <em style="color: var(--on-surface-variant);">Root</em>
+                  </template>
                 </span>
                 <span v-if="item.dependents.length">
-                  Dependents:
+                  ← Dependents:
                   <b
                     v-for="dep in item.dependents"
                     :key="`${item.token.id}-${dep.token.id}`"
@@ -466,6 +648,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
           </a>
         </div>
       </template>
+      </div><!-- .alph-resources__tree-container -->
     </template>
 
   </div>
@@ -473,6 +656,12 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 
 <style scoped>
 .alph-resources { font-size: 12px; color: var(--on-surface); }
+.alph-resources--tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
 
 /* ── Usage ── */
 .alph-resources__head {
@@ -814,7 +1003,103 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 }
 
 /* ── Tree ── */
+.alph-resources__tree-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.alph-resources__tree-query {
+  flex-shrink: 0;
+  padding: 6px 8px;
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--outline-variant);
+}
+.alph-resources__tree-query-compact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.alph-resources__tree-query-lang {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface);
+  min-width: 65px;
+}
+.alph-resources__tree-query-text {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface);
+  min-width: 0;
+}
+.alph-resources__tree-query-cite {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface);
+  min-width: 60px;
+}
+.alph-resources__tree-query-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  min-width: 32px;
+}
+.alph-resources__tree-query-btn:hover {
+  opacity: 0.9;
+}
+.alph-resources__tree-query-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.alph-resources__tree-nav-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-container-highest);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface);
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 32px;
+}
+.alph-resources__tree-nav-btn:hover:not(:disabled) {
+  background: var(--surface-container);
+  border-color: var(--on-surface);
+}
+.alph-resources__tree-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.alph-resources__tree-query-info {
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-highest);
+  border-radius: var(--radius-sm);
+}
+
 .alph-resources__tree-toolbar {
+  flex-shrink: 0;
   box-sizing: border-box;
   min-height: 37px;
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
@@ -822,6 +1107,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
   border-bottom: 1px solid var(--divider);
 }
 .alph-resources__tree-filter-row {
+  flex-shrink: 0;
   --alph-tree-pos-accent: #F4511E;
   display: flex;
   gap: 4px;
@@ -885,28 +1171,102 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
     var(--surface-container-low);
   position: relative;
   overflow: auto;
-  min-height: 260px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
+
+/* 自定义滚动条样式 - 更优雅、更细、半透明 */
+.alph-resources__tree-canvas::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.alph-resources__tree-canvas::-webkit-scrollbar-track {
+  background: transparent;
+}
+.alph-resources__tree-canvas::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.alph-resources__tree-canvas::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+.alph-resources__tree-canvas::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox 滚动条 */
+.alph-resources__tree-canvas {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
 [data-theme="dark"] .alph-resources__tree-canvas {
   background:
     radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04), transparent 60%),
     var(--surface-container-low);
 }
+
+/* Dark mode 滚动条 */
+[data-theme="dark"] .alph-resources__tree-canvas::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+[data-theme="dark"] .alph-resources__tree-canvas::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+[data-theme="dark"] .alph-resources__tree-canvas {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
 .alph-resources__tree-svg-wrap {
   padding: 16px 12px;
-  display: flex; align-items: center; justify-content: flex-start;
-  transform-origin: top left;
-  transition: transform var(--motion-fast);
+  display: inline-block;
+  min-width: 100%;
+  min-height: 100%;
 }
-.alph-resources__tree-svg { font-family: 'Inter', sans-serif; }
+.alph-resources__tree-svg {
+  font-family: 'Inter', sans-serif;
+  display: block;
+}
 
 .alph-resources__tree-inspector {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 8px 12px;
-  border-top: 1px solid var(--divider);
-  background: var(--surface-container-lowest);
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--outline-variant);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+  animation: slideUpFade 0.2s ease-out;
+  pointer-events: none;
+}
+.alph-resources__tree-inspector > * {
+  pointer-events: auto;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-theme="dark"] .alph-resources__tree-inspector {
+  background: rgba(30, 30, 30, 0.95);
+  border-top-color: var(--outline);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
 }
 .alph-resources__tree-inspector-main {
   min-width: 112px;
@@ -1002,6 +1362,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
 }
 
 .alph-resources__tree-strip {
+  flex-shrink: 0;
   padding: 8px 12px;
   border-bottom: 1px solid var(--divider);
   background: rgba(255,255,255,0.3);

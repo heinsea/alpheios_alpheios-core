@@ -11,6 +11,7 @@
 import { ref, onScopeDispose } from 'vue'
 import { useAppController } from './use-app-controller.js'
 import { buildGrammarData } from '../lib/resources-helpers.js'
+import { buildTreebankResource, findTreebankSentence } from '../lib/treebank-data.js'
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
 function isOfficialTextsPage () {
@@ -38,6 +39,7 @@ export function useResources (options = {}) {
   const getLanguageCode = typeof options.getLanguageCode === 'function'
     ? options.getLanguageCode
     : () => null
+  const treebankCorpora = Array.isArray(options.treebankCorpora) ? options.treebankCorpora : []
 
   /* ── Word Usage Examples ── */
   function buildUsage () {
@@ -124,6 +126,22 @@ export function useResources (options = {}) {
   function buildTree () {
     const lexisState = store.state.lexis
     if (lexisState && lexisState.treebankSrc) {
+      const treebankMetadata = lexisState.treebankMetadata || {}
+      for (const corpus of treebankCorpora) {
+        const sentence = findTreebankSentence(corpus, treebankMetadata)
+        const nativeTree = buildTreebankResource(sentence, treebankMetadata)
+        if (nativeTree) {
+          treeData.value = {
+            ...nativeTree,
+            treebankSrc: null,
+            officialReaderUrl: OFFICIAL_READER_URL,
+            isOfficialTextsPage: isOfficialTextsPage(),
+            suppressTree: lexisState.suppressTree,
+            kind: 'native'
+          }
+          return
+        }
+      }
       treeData.value = {
         ref: 'Live treebank',
         textStrip: '',
@@ -202,6 +220,10 @@ export function useResources (options = {}) {
   ))
   unwatchers.push(store.watch(
     (st) => st.lexis && st.lexis.treebankSrc,
+    () => { buildTree() }
+  ))
+  unwatchers.push(store.watch(
+    (st) => st.lexis && st.lexis.treebankMetadata,
     () => { buildTree() }
   ))
   // Proactively fetch word-usage examples whenever a homonym becomes

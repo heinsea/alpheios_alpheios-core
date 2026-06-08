@@ -13,6 +13,19 @@ const clientId = 'alpheios-components'
 let cedictConfig = CedictProdConfig
 if (DEVELOPMENT_MODE_BUILD) { cedictConfig = CedictDevConfig }
 
+function serializeTreebankDataItem (item) {
+  if (!item) return null
+  return {
+    doc: item.doc || '',
+    sentenceId: item.sentenceId || '',
+    wordIds: Array.isArray(item.wordIds) ? [...item.wordIds] : [],
+    sourceUrl: item.sourceUrl || '',
+    fullUrl: item.fullUrl || '',
+    provider: item.provider || '',
+    suppressTree: Boolean(item.suppressTree)
+  }
+}
+
 export default class Lexis extends Module {
   /**
    * @param {object} store - A Vuex store.
@@ -55,7 +68,11 @@ export default class Lexis extends Module {
 
     this._treebankDataItem = TreebankDataItem.getTreebankData()
     if (this._treebankDataItem) {
-      store.commit('lexis/setTreebankInfo', { treebankSrc: this._treebankDataItem.fullUrl, hasTreebankData: false })
+      store.commit('lexis/setTreebankInfo', {
+        treebankSrc: this._treebankDataItem.fullUrl,
+        hasTreebankData: false,
+        treebankMetadata: serializeTreebankDataItem(this._treebankDataItem)
+      })
       this.constructor.refreshUntilLoaded(
         this._treebankDataItem.provider,
         this.config.arethusaTbRefreshRetryCount,
@@ -282,7 +299,8 @@ export default class Lexis extends Module {
           // No need to update treebank sourceURL
           store.commit('lexis/setTreebankInfo', {
             hasTreebankData: treebankDataItem.hasSentenceData,
-            suppressTree: treebankDataItem.suppressTree
+            suppressTree: treebankDataItem.suppressTree,
+            treebankMetadata: serializeTreebankDataItem(treebankDataItem)
           })
         } catch (err) {
           // If refreshUntilLoaded failed treebank data will be unavailable
@@ -298,7 +316,8 @@ export default class Lexis extends Module {
         this._lastTreebankDataItem = treebankDataItem
         store.commit('lexis/setTreebankInfo', {
           hasTreebankData: treebankDataItem.hasSentenceData,
-          suppressTree: treebankDataItem.suppressTree
+          suppressTree: treebankDataItem.suppressTree,
+          treebankMetadata: serializeTreebankDataItem(treebankDataItem)
         })
       }
       try {
@@ -310,6 +329,7 @@ export default class Lexis extends Module {
           }
         }
         wordIDs = treebankDataItem.wordIds
+        store.commit('lexis/setTreebankInfo', { treebankMetadata: serializeTreebankDataItem(treebankDataItem) })
       } catch (err) {
         // Treebank data is unavailable
         store.commit('lexis/setTreebankInfo', { hasTreebankData: false })
@@ -333,7 +353,7 @@ export default class Lexis extends Module {
       }
     } else if (this._treebankAvailable) {
       // Treebank icon is shown if $store.state.lexis.hasTreebankData
-      store.commit('lexis/setTreebankInfo', { hasTreebankData: false })
+      store.commit('lexis/setTreebankInfo', { hasTreebankData: false, treebankMetadata: null })
       this._treebankDataItem = null
     }
     return wordIDs
@@ -553,6 +573,7 @@ Lexis.store = (moduleInstance) => {
       cedictDisplayNotification: false,
       hasTreebankData: false, // Whether treebank has any word or sentence data
       treebankSrc: null,
+      treebankMetadata: null,
       // The following indicates that treebank resource is unavailable as the latest refresh request to it failed
       treebankRefreshFailed: false
     },
@@ -594,17 +615,20 @@ Lexis.store = (moduleInstance) => {
       setTreebankInfo (state, {
         treebankSrc = undefined,
         hasTreebankData = undefined,
-        suppressTree = false
+        suppressTree = false,
+        treebankMetadata = undefined
       } = {}) {
         // Update store variables only if some meaningful values are provided
         if (typeof hasTreebankData !== 'undefined') { state.hasTreebankData = hasTreebankData }
         if (typeof treebankSrc !== 'undefined') { state.treebankSrc = treebankSrc }
         if (typeof suppressTree !== 'undefined') { state.suppressTree = suppressTree }
+        if (typeof treebankMetadata !== 'undefined') { state.treebankMetadata = treebankMetadata }
       },
 
       resetTreebankInfo (state) {
         state.hasTreebankData = false
         state.treebankSrc = null
+        state.treebankMetadata = null
         state.treebankSrc = false
       },
 
