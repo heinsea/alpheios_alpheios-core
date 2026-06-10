@@ -1,4 +1,4 @@
-function normalizeDocId (value = '') {
+export function normalizeDocId (value = '') {
   return String(value)
     .replace(/^urn:cts:[^:]+:/, '')
     .replace(/\.tb$/, '')
@@ -32,18 +32,17 @@ export function findTreebankSentence (sentences = [], metadata = {}) {
 export function buildTreebankResource (sentence, metadata = {}) {
   if (!sentence || !Array.isArray(sentence.nodes) || !Array.isArray(sentence.edges)) return null
   const cite = sentence.cite || sentence.id || ''
-  const provider = sentence.provider || 'Treebank'
   const tokenCount = Math.max(0, sentence.nodes.length - 1)
   return {
     kind: 'native',
     id: sentence.id,
-    ref: `<strong>${cite}</strong> · ${provider}`,
+    ref: `<strong>${cite}</strong>`,
     text: sentence.text || '',
     textStrip: sentence.text || '',
     nodes: sentence.nodes,
     edges: sentence.edges,
     highlightIds: normalizeWordIds(metadata.wordIds, sentence.nodes),
-    footerMeta: `${cite} · ${tokenCount} tokens · ${provider}`,
+    footerMeta: `${cite} · ${tokenCount} tokens`,
     treebankSrc: null,
     suppressTree: false
   }

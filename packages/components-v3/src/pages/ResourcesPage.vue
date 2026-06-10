@@ -19,7 +19,7 @@ import Icon from '../primitives/Icon.vue'
 import DependencyTree from '../primitives/DependencyTree.vue'
 import { uiStore } from '../store/ui-store.js'
 import { summarizeTreebankPos } from '../lib/treebank-pos.js'
-import treebankCatalog from '../lib/treebank-catalog.json'
+import { getCatalog, getWorkIndex } from '../lib/treebank-service.js'
 
 const props = defineProps({
   mode: { type: String, required: true }, // 'usage' | 'grammar' | 'tree'
@@ -142,116 +142,146 @@ const tree = computed(() => ({
 }))
 const treeText = computed(() => tree.value.text || tree.value.textStrip || '')
 
-// Query state
-const queryLang = ref('greek')
-const queryDocId = ref('tlg0012.tlg002.perseus-grc1')
-const queryCite = ref('1.1')
-const queryLoading = ref(false)
-const availableCitations = ref([])
-const citationsLoading = ref(false)
-const sentenceIndex = ref([]) // Store full sentence metadata
+// Query state — catalog-driven, index loaded via treebank-service.
+const treebankCatalog = getCatalog()
+const TREE_QUERY_STATE = {
+  lang: 'greek',
+  docId: 'tlg0012.tlg002.perseus-grc1',
+  sentenceId: '',
+  position: 0
+}
 
-const treebankWorks = computed(() => {
-  const lang = queryLang.value
-  return treebankCatalog[lang] || []
-})
+const queryLang = ref(TREE_QUERY_STATE.lang)
+const queryDocId = ref(TREE_QUERY_STATE.docId)
+const sentenceIndex = ref([]) // _index.json sentences, numerically ordered by official cite
+const indexLoading = ref(false)
+const indexError = ref(null)
+const position = ref(0) // 0-based offset into sentenceIndex
+const selectedPassageId = ref('')
+const treeSvgRef = ref(null)
+
+const treebankWorks = computed(() => treebankCatalog[queryLang.value] || [])
 
 const selectedWork = computed(() =>
   treebankWorks.value.find(w => w.docId === queryDocId.value)
 )
 
-// Load available citations when docId changes
-watch(queryDocId, async (newDocId) => {
-  if (!newDocId) return
-  citationsLoading.value = true
-  availableCitations.value = []
-  sentenceIndex.value = []
+const totalSentences = computed(() => sentenceIndex.value.length)
+const currentEntry = computed(() => sentenceIndex.value[position.value] || null)
 
-  try {
-    const lang = queryLang.value
-    const url = `http://localhost:3000/${lang}/${newDocId}`
-    const response = await fetch(url)
-    if (response.ok) {
-      const index = await response.json()
-      sentenceIndex.value = index.sentences || []
+function passageLabel (entry) {
+  return entry?.cite || entry?.id || ''
+}
 
-      // Group by book.chapter
-      const citeSet = new Set()
-      index.sentences?.forEach(s => {
-        // Extract book.chapter from cite (e.g., "1.1" from "1.1-1.2")
-        const parts = s.cite.split('.')[0].split('-')[0] // Get "1" from "1.1-1.2"
-        const chapter = s.cite.match(/^(\d+\.\d+)/)?.[1] // Get "1.1" from "1.1-1.2"
-        if (chapter) {
-          citeSet.add(chapter)
-        } else if (parts) {
-          citeSet.add(parts)
-        }
-      })
-      availableCitations.value = Array.from(citeSet).sort((a, b) => {
-        const [aBook, aChap = '0'] = a.split('.').map(Number)
-        const [bBook, bChap = '0'] = b.split('.').map(Number)
-        return aBook - bBook || aChap - bChap
-      })
+function citeSortParts (entry) {
+  return passageLabel(entry)
+    .match(/\d+|\D+/g)
+    ?.map(part => (/^\d+$/.test(part) ? Number(part) : part)) || ['']
+}
 
-      // Set first citation as default
-      if (availableCitations.value.length > 0) {
-        queryCite.value = availableCitations.value[0]
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to load citations:', err)
-  } finally {
-    citationsLoading.value = false
+function compareCites (a, b) {
+  const left = citeSortParts(a)
+  const right = citeSortParts(b)
+  const length = Math.max(left.length, right.length)
+  for (let i = 0; i < length; i++) {
+    if (left[i] === undefined) return -1
+    if (right[i] === undefined) return 1
+    if (left[i] === right[i]) continue
+    if (typeof left[i] === 'number' && typeof right[i] === 'number') return left[i] - right[i]
+    return String(left[i]).localeCompare(String(right[i]))
   }
+  return 0
+}
+
+const passageOptions = computed(() => sentenceIndex.value
+  .map((entry, index) => ({ entry, index }))
+)
+
+async function loadIndex () {
+  const docId = queryDocId.value
+  if (!docId) return
+  indexLoading.value = true
+  indexError.value = null
+  sentenceIndex.value = []
+  try {
+    const { index, source } = await getWorkIndex(docId)
+    if (queryDocId.value !== docId) return // user switched works mid-flight
+    if (!index || !Array.isArray(index.sentences) || !index.sentences.length) {
+      indexError.value = 'Unable to load the sentence index. Check your connection, or install the offline package from Settings.'
+      return
+    }
+    sentenceIndex.value = [...index.sentences].sort(compareCites)
+    let startAt = 0
+    if (TREE_QUERY_STATE.docId === docId && TREE_QUERY_STATE.sentenceId) {
+      const restored = sentenceIndex.value.findIndex(entry => String(entry.id) === String(TREE_QUERY_STATE.sentenceId))
+      if (restored >= 0) startAt = restored
+    } else if (TREE_QUERY_STATE.docId === docId && TREE_QUERY_STATE.position < sentenceIndex.value.length) {
+      startAt = TREE_QUERY_STATE.position
+    }
+    const startEntry = sentenceIndex.value[startAt]
+    selectedPassageId.value = startEntry ? String(startEntry.id) : ''
+    goTo(startAt, { force: true })
+  } catch (err) {
+    if (queryDocId.value === docId) indexError.value = `Failed to load index: ${err.message}`
+  } finally {
+    if (queryDocId.value === docId) indexLoading.value = false
+  }
+}
+
+watch(queryDocId, () => {
+  TREE_QUERY_STATE.docId = queryDocId.value
+  loadIndex()
 }, { immediate: true })
 
 // Watch lang change to update docId
 watch(queryLang, (newLang) => {
+  TREE_QUERY_STATE.lang = newLang
   const works = treebankCatalog[newLang] || []
   if (works.length > 0) {
-    queryDocId.value = works[0].docId
+    const savedDocIsInLang = works.some(work => work.docId === TREE_QUERY_STATE.docId)
+    queryDocId.value = savedDocIsInLang ? TREE_QUERY_STATE.docId : works[0].docId
   }
 })
 
-async function loadTreebankSentence() {
-  if (!queryDocId.value || !queryCite.value) return
-  queryLoading.value = true
-  try {
-    // Find sentence that starts with the selected cite
-    const sentence = sentenceIndex.value.find(s => s.cite.startsWith(queryCite.value))
-    if (sentence) {
-      // Use the sentence's index for loading
-      emit('load-treebank', queryDocId.value, sentence.index)
-    } else {
-      // Fallback: try the cite as-is
-      emit('load-treebank', queryDocId.value, queryCite.value)
-    }
-  } finally {
-    setTimeout(() => { queryLoading.value = false }, 500)
+// Navigation MUST follow _index.json array order: cite values are passage
+// anchors shared by several sentences and ids contain source gaps, so
+// neither supports next/previous arithmetic (see DATA-INTEGRITY-AUDIT.md).
+function syncSelectorsToPosition () {
+  const entry = currentEntry.value
+  if (!entry) return
+  selectedPassageId.value = String(entry.id)
+}
+
+function goTo (pos, { force = false } = {}) {
+  if (pos < 0 || pos >= totalSentences.value) return
+  if (!force && pos === position.value) return
+  position.value = pos
+  syncSelectorsToPosition()
+  const entry = sentenceIndex.value[pos]
+  if (entry) {
+    TREE_QUERY_STATE.lang = queryLang.value
+    TREE_QUERY_STATE.docId = queryDocId.value
+    TREE_QUERY_STATE.position = pos
+    TREE_QUERY_STATE.sentenceId = String(entry.id)
+    emit('load-treebank', queryDocId.value, entry.id)
   }
 }
 
-// Navigation
-const currentCiteIndex = computed(() =>
-  availableCitations.value.indexOf(queryCite.value)
-)
-const canGoPrevious = computed(() => currentCiteIndex.value > 0)
-const canGoNext = computed(() =>
-  currentCiteIndex.value >= 0 && currentCiteIndex.value < availableCitations.value.length - 1
-)
-
-function loadPreviousSentence() {
-  if (canGoPrevious.value) {
-    queryCite.value = availableCitations.value[currentCiteIndex.value - 1]
-    loadTreebankSentence()
-  }
+function selectPassage (sentenceId) {
+  selectedPassageId.value = sentenceId
+  const pos = sentenceIndex.value.findIndex(entry => String(entry.id) === String(sentenceId))
+  if (pos >= 0) goTo(pos, { force: true })
 }
 
-function loadNextSentence() {
-  if (canGoNext.value) {
-    queryCite.value = availableCitations.value[currentCiteIndex.value + 1]
-    loadTreebankSentence()
-  }
+const goToFirst = () => goTo(0)
+const goToPrevious = () => goTo(position.value - 1)
+const goToNext = () => goTo(position.value + 1)
+const goToLast = () => goTo(totalSentences.value - 1)
+const canGoPrevious = computed(() => position.value > 0)
+const canGoNext = computed(() => position.value < totalSentences.value - 1)
+
+function retrySentence () {
+  goTo(position.value, { force: true })
 }
 
 const selectedTreeTokenIds = ref([])
@@ -454,55 +484,43 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
       <!-- Query interface - compact -->
       <div class="alph-resources__tree-query">
         <div class="alph-resources__tree-query-compact">
-          <select v-model="queryLang" class="alph-resources__tree-query-lang">
+          <select v-model="queryLang" class="alph-resources__tree-query-lang" aria-label="Treebank language">
             <option value="latin">Latin</option>
             <option value="greek">Greek</option>
           </select>
-          <select v-model="queryDocId" class="alph-resources__tree-query-text">
+          <select v-model="queryDocId" class="alph-resources__tree-query-text" aria-label="Treebank text">
             <option v-for="work in treebankWorks" :key="work.docId" :value="work.docId">
               {{ work.author }} — {{ work.title }}
             </option>
           </select>
-          <select
-            v-if="availableCitations.length"
-            v-model="queryCite"
-            class="alph-resources__tree-query-cite"
-            :disabled="citationsLoading"
-          >
-            <option v-for="cite in availableCitations" :key="cite" :value="cite">
-              {{ cite }}
-            </option>
-          </select>
-          <button
-            @click="loadTreebankSentence"
-            class="alph-resources__tree-query-btn"
-            :disabled="queryLoading || citationsLoading"
-          >
-            {{ queryLoading ? 'Loading...' : 'Load' }}
-          </button>
-          <button
-            v-if="tree.nodes?.length"
-            @click="loadPreviousSentence"
-            class="alph-resources__tree-nav-btn"
-            :disabled="!canGoPrevious"
-            title="Previous sentence"
-          >
-            ←
-          </button>
-          <button
-            v-if="tree.nodes?.length"
-            @click="loadNextSentence"
-            class="alph-resources__tree-nav-btn"
-            :disabled="!canGoNext"
-            title="Next sentence"
-          >
-            →
-          </button>
+          <div v-if="totalSentences" class="alph-resources__tree-nav">
+            <button class="alph-resources__tree-nav-btn" :disabled="!canGoPrevious" aria-label="First passage" @click="goToFirst">⇤</button>
+            <button class="alph-resources__tree-nav-btn" :disabled="!canGoPrevious" aria-label="Previous passage" @click="goToPrevious">←</button>
+            <select
+              class="alph-resources__tree-passage-select"
+              :value="selectedPassageId"
+              aria-label="Treebank passage"
+              @change="selectPassage($event.target.value)"
+            >
+              <option v-for="item in passageOptions" :key="item.entry.id" :value="item.entry.id">
+                {{ passageLabel(item.entry) }}
+              </option>
+            </select>
+            <button class="alph-resources__tree-nav-btn" :disabled="!canGoNext" aria-label="Next passage" @click="goToNext">→</button>
+            <button class="alph-resources__tree-nav-btn" :disabled="!canGoNext" aria-label="Last passage" @click="goToLast">⇥</button>
+          </div>
         </div>
         <div class="alph-resources__tree-query-info">
-          <template v-if="selectedWork">
-            {{ selectedWork.citeRange }} · {{ selectedWork.books }} book(s)
-            <span v-if="availableCitations.length"> · {{ availableCitations.length }} sections available</span>
+          <template v-if="indexLoading">
+            Loading sentence index…
+          </template>
+          <template v-else-if="indexError">
+            <span class="alph-resources__tree-error-text">{{ indexError }}</span>
+            <button class="alph-resources__tree-retry" @click="loadIndex">Retry</button>
+          </template>
+          <template v-else-if="selectedWork">
+            {{ selectedWork.author }} — {{ selectedWork.title }}
+            <template v-if="currentEntry"> · {{ passageLabel(currentEntry) }}</template>
           </template>
           <template v-else>
             Select a text to view treebank data
@@ -510,10 +528,15 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
         </div>
       </div>
 
-      <!-- Native dependency tree POC (structured nodes/edges data) -->
+      <!-- Native dependency tree (structured nodes/edges data) -->
       <template v-if="tree.nodes && tree.nodes.length">
         <div class="alph-resources__tree-toolbar">
           <span class="alph-resources__sentence-id" v-html="tree.ref" />
+          <div class="alph-resources__zoom">
+            <button type="button" aria-label="Zoom out" @click="treeSvgRef?.zoomOut()">−</button>
+            <button type="button" aria-label="Reset view" @click="treeSvgRef?.resetZoom()">⊙</button>
+            <button type="button" aria-label="Zoom in" @click="treeSvgRef?.zoomIn()">+</button>
+          </div>
           <Chip
             v-if="activeTreeHighlightIds.length"
             variant="default"
@@ -555,6 +578,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
         <div class="alph-resources__tree-canvas">
           <div class="alph-resources__tree-svg-wrap">
             <DependencyTree
+              ref="treeSvgRef"
               class="alph-resources__tree-svg"
               :nodes="tree.nodes"
               :edges="tree.edges || []"
@@ -610,6 +634,23 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
         </div>
       </template>
 
+      <!-- Sentence loading -->
+      <template v-else-if="tree.loading">
+        <div class="alph-resources__tree-loading">
+          <div class="alph-resources__tree-spinner" />
+          <p>Loading sentence…</p>
+        </div>
+      </template>
+
+      <!-- Sentence load failure -->
+      <template v-else-if="tree.kind === 'error'">
+        <div class="alph-resources__tree-empty">
+          <h3>Failed to load sentence</h3>
+          <p>{{ tree.footerMeta }}</p>
+          <button class="alph-resources__tree-retry" @click="retrySentence">Retry</button>
+        </div>
+      </template>
+
       <!-- Live treebank iframe (when data is available) -->
       <template v-else-if="tree.treebankSrc">
         <div class="alph-resources__tree-toolbar">
@@ -642,7 +683,7 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
         <div class="alph-resources__tree-empty">
           <h3>No treebank loaded</h3>
           <p v-if="tree.isOfficialTextsPage">Select a word on this Alpheios Texts page to load a live treebank.</p>
-          <p v-else>Treebank is page-metadata driven. Use a supported Alpheios Texts page as the current page to load a live diagram.</p>
+          <p v-else>Pick a text above to browse its dependency trees, or select a word on a supported Alpheios Texts page.</p>
           <a v-if="!tree.isOfficialTextsPage && tree.officialReaderUrl" :href="tree.officialReaderUrl" target="_blank" rel="noopener" class="alph-resources__reader-link">
             Open supported reader
           </a>
@@ -1041,33 +1082,55 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
   color: var(--on-surface);
   min-width: 0;
 }
-.alph-resources__tree-query-cite {
-  padding: 4px 8px;
+.alph-resources__tree-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.alph-resources__tree-passage-select {
+  padding: 4px 6px;
   font-size: 11px;
+  font-family: inherit;
   background: var(--surface-container);
   border: 1px solid var(--outline-variant);
   border-radius: var(--radius-sm);
   color: var(--on-surface);
-  min-width: 60px;
+  width: 96px;
 }
-.alph-resources__tree-query-btn {
-  padding: 4px 12px;
-  font-size: 11px;
+.alph-resources__tree-error-text { color: var(--error); }
+.alph-resources__tree-retry {
+  margin-left: 8px;
+  padding: 2px 10px;
+  font-size: 10px;
   font-weight: 600;
-  background: var(--primary);
-  color: var(--on-primary);
-  border: none;
+  font-family: inherit;
+  background: var(--surface-container-highest);
+  border: 1px solid var(--outline-variant);
   border-radius: var(--radius-sm);
+  color: var(--on-surface);
   cursor: pointer;
-  transition: opacity 0.15s;
-  min-width: 32px;
 }
-.alph-resources__tree-query-btn:hover {
-  opacity: 0.9;
+.alph-resources__tree-retry:hover { border-color: var(--on-surface); }
+.alph-resources__tree-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--on-surface-variant);
+  font-size: 12px;
 }
-.alph-resources__tree-query-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.alph-resources__tree-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--outline-variant);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: alph-tree-spin 0.8s linear infinite;
+}
+@keyframes alph-tree-spin {
+  to { transform: rotate(360deg); }
 }
 .alph-resources__tree-nav-btn {
   padding: 4px 10px;
@@ -1170,7 +1233,8 @@ watch(footerMeta, (v) => emit('footer-meta', v), { immediate: true })
     radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6), transparent 60%),
     var(--surface-container-low);
   position: relative;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   flex: 1;
   min-height: 0;
   display: flex;

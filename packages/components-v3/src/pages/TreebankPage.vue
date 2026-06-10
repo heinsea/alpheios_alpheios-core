@@ -1,52 +1,52 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import DependencyTree from '../primitives/DependencyTree.vue'
-import { loadTreebankData, getEmbeddedWorks } from '../lib/treebank-loader.js'
-import { findTreebankSentence, buildTreebankResource } from '../lib/treebank-data.js'
+import { getWorkIndex, getSentence, getWorkInfo } from '../lib/treebank-service.js'
+import { buildTreebankResource } from '../lib/treebank-data.js'
 
 const props = defineProps({
   docId: { type: String, default: '' },
   sentenceId: { type: String, default: '' },
   wordIds: { type: Array, default: () => [] },
-  mode: { type: String, default: 'auto' }
+  providers: { type: Array, default: null }
 })
 
 const emit = defineEmits(['navigate', 'token-select'])
 
-const sentences = ref([])
-const currentIndex = ref(0)
+const workIndex = ref(null)
+const position = ref(0) // 0-based offset into workIndex.sentences (array order, NOT cite/id arithmetic)
+const currentSentence = ref(null)
+const dataSource = ref(null)
 const loading = ref(false)
 const error = ref(null)
 const highlightIds = ref([])
 const selectedPos = ref([])
 
-// 当前句子
-const currentSentence = computed(() => sentences.value[currentIndex.value] || null)
+const loadOptions = computed(() => (props.providers ? { providers: props.providers } : {}))
 
-// 构建渲染资源
+const total = computed(() => workIndex.value?.sentences?.length || 0)
+
 const treeResource = computed(() => {
   if (!currentSentence.value) return null
   return buildTreebankResource(currentSentence.value, { wordIds: highlightIds.value })
 })
 
-// 分页信息
-const pagerInfo = computed(() => {
-  if (!currentSentence.value) return ''
-  const { index = 1, total = 1 } = currentSentence.value
-  return `${index} / ${total}`
-})
+const pagerInfo = computed(() => (total.value ? `${position.value + 1} / ${total.value}` : ''))
 
-// 作品信息
 const workTitle = computed(() => {
-  if (!currentSentence.value) return ''
-  const docId = currentSentence.value.docId || ''
-  // 简单的标题提取，实际应该从catalog映射
-  if (docId.includes('phi0690.phi003')) return 'Vergil Aeneid'
-  if (docId.includes('tlg0012.tlg001')) return 'Homer Iliad'
-  return docId
+  if (!props.docId) return ''
+  const info = getWorkInfo(props.docId)
+  if (!info) return props.docId
+  return info.author ? `${info.author} — ${info.title}` : info.title
 })
 
-// 底部元信息
+const SOURCE_LABELS = {
+  local: 'Offline',
+  cdn: 'CDN',
+  api: 'API',
+  embedded: 'Built-in'
+}
+
 const footerMeta = computed(() => {
   if (!currentSentence.value) return ''
   const cite = currentSentence.value.cite || ''
@@ -55,71 +55,87 @@ const footerMeta = computed(() => {
   return `${cite} · ${tokenCount} tokens · ${provider}`
 })
 
-// 加载数据
-async function loadData (docId, sentenceId) {
-  if (!docId) return
+let loadGeneration = 0
 
+async function loadWork (docId, sentenceId) {
+  if (!docId) return
+  const generation = ++loadGeneration
   loading.value = true
   error.value = null
 
   try {
-    const data = await loadTreebankData({ docId, mode: props.mode })
-    if (!data) {
-      error.value = `Failed to load: ${docId}`
-      sentences.value = []
+    const { index, source } = await getWorkIndex(docId, loadOptions.value)
+    if (generation !== loadGeneration) return
+    if (!index?.sentences?.length) {
+      workIndex.value = null
+      currentSentence.value = null
+      error.value = `Unable to load treebank data for ${docId}`
       return
     }
+    workIndex.value = index
+    dataSource.value = source
 
-    sentences.value = Array.isArray(data) ? data : [data]
-
-    // 定位到指定句子
+    let startAt = 0
     if (sentenceId) {
-      const index = sentences.value.findIndex(s => s.id === sentenceId)
-      currentIndex.value = index >= 0 ? index : 0
-    } else {
-      currentIndex.value = 0
+      const found = index.sentences.findIndex(s => String(s.id) === String(sentenceId))
+      if (found >= 0) startAt = found
     }
+    position.value = startAt
+    await loadSentenceAt(startAt, generation)
   } catch (err) {
+    if (generation !== loadGeneration) return
     console.error('[TreebankPage] Load error:', err)
-    error.value = `加载失败: ${err.message}`
-    sentences.value = []
+    error.value = `Failed to load: ${err.message}`
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) loading.value = false
   }
 }
 
-// 导航
-function goToPrevious () {
-  if (currentIndex.value > 0) {
-    currentIndex.value--
+async function loadSentenceAt (pos, generation = loadGeneration) {
+  const entry = workIndex.value?.sentences?.[pos]
+  if (!entry) return
+
+  loading.value = true
+  error.value = null
+  try {
+    const { sentence, source } = await getSentence(props.docId, entry.id, loadOptions.value)
+    if (generation !== loadGeneration) return
+    if (!sentence) {
+      currentSentence.value = null
+      error.value = `Unable to load sentence ${entry.id}`
+      return
+    }
+    currentSentence.value = sentence
+    dataSource.value = source
+    emit('navigate', { docId: props.docId, sentenceId: entry.id })
+
+    const next = workIndex.value.sentences[pos + 1]
+    if (next) getSentence(props.docId, next.id, loadOptions.value).catch(() => {})
+  } catch (err) {
+    if (generation !== loadGeneration) return
+    console.error('[TreebankPage] Sentence load error:', err)
+    error.value = `Failed to load: ${err.message}`
+  } finally {
+    if (generation === loadGeneration) loading.value = false
   }
 }
 
-function goToNext () {
-  if (currentIndex.value < sentences.value.length - 1) {
-    currentIndex.value++
-  }
+function goTo (pos) {
+  if (pos < 0 || pos >= total.value || pos === position.value) return
+  position.value = pos
+  loadSentenceAt(pos)
 }
 
-function goToFirst () {
-  currentIndex.value = 0
-}
+const goToFirst = () => goTo(0)
+const goToPrevious = () => goTo(position.value - 1)
+const goToNext = () => goTo(position.value + 1)
+const goToLast = () => goTo(total.value - 1)
 
-function goToLast () {
-  currentIndex.value = sentences.value.length - 1
-}
-
-// Token选择
 function handleTokenSelect (tokenId) {
-  if (highlightIds.value.includes(tokenId)) {
-    highlightIds.value = []
-  } else {
-    highlightIds.value = [tokenId]
-  }
+  highlightIds.value = highlightIds.value.includes(tokenId) ? [] : [tokenId]
   emit('token-select', tokenId)
 }
 
-// 词性过滤
 function togglePosFilter (pos) {
   const index = selectedPos.value.indexOf(pos)
   if (index >= 0) {
@@ -129,7 +145,6 @@ function togglePosFilter (pos) {
   }
 }
 
-// 获取所有词性
 const availablePos = computed(() => {
   if (!currentSentence.value?.nodes) return []
   const posSet = new Set()
@@ -139,23 +154,13 @@ const availablePos = computed(() => {
   return Array.from(posSet).sort()
 })
 
-// 监听props变化
 watch(() => [props.docId, props.sentenceId], ([docId, sentenceId]) => {
-  if (docId) {
-    loadData(docId, sentenceId)
-  }
+  if (docId) loadWork(docId, sentenceId)
 }, { immediate: true })
 
 watch(() => props.wordIds, (wordIds) => {
   highlightIds.value = wordIds || []
 }, { immediate: true })
-
-onMounted(() => {
-  // 初始加载
-  if (props.docId) {
-    loadData(props.docId, props.sentenceId)
-  }
-})
 </script>
 
 <template>
@@ -164,28 +169,28 @@ onMounted(() => {
       <h2 class="alph-treebank-page__title">{{ workTitle }}</h2>
       <div class="alph-treebank-page__controls">
         <div class="alph-treebank-page__pager">
-          <button @click="goToFirst" :disabled="currentIndex === 0 || loading">⇤</button>
-          <button @click="goToPrevious" :disabled="currentIndex === 0 || loading">←</button>
+          <button @click="goToFirst" :disabled="position === 0 || loading" aria-label="First sentence">⇤</button>
+          <button @click="goToPrevious" :disabled="position === 0 || loading" aria-label="Previous sentence">←</button>
           <span class="alph-treebank-page__pager-info">{{ pagerInfo }}</span>
-          <button @click="goToNext" :disabled="currentIndex >= sentences.length - 1 || loading">→</button>
-          <button @click="goToLast" :disabled="currentIndex >= sentences.length - 1 || loading">⇥</button>
+          <button @click="goToNext" :disabled="position >= total - 1 || loading" aria-label="Next sentence">→</button>
+          <button @click="goToLast" :disabled="position >= total - 1 || loading" aria-label="Last sentence">⇥</button>
         </div>
       </div>
     </div>
 
     <div v-if="loading" class="alph-treebank-page__loading">
       <div class="alph-treebank-page__spinner"></div>
-      <p>加载中...</p>
+      <p>Loading…</p>
     </div>
 
     <div v-else-if="error" class="alph-treebank-page__error">
       <p>{{ error }}</p>
+      <button class="alph-treebank-page__retry" @click="loadWork(props.docId, props.sentenceId)">Retry</button>
     </div>
 
     <div v-else-if="treeResource" class="alph-treebank-page__content">
-      <!-- 词性过滤器 -->
       <div v-if="availablePos.length" class="alph-treebank-page__pos-filter">
-        <span class="alph-treebank-page__pos-label">词性筛选：</span>
+        <span class="alph-treebank-page__pos-label">POS filter:</span>
         <button
           v-for="pos in availablePos"
           :key="pos"
@@ -200,11 +205,10 @@ onMounted(() => {
           class="alph-treebank-page__pos-clear"
           @click="selectedPos = []"
         >
-          清除
+          Clear
         </button>
       </div>
 
-      <!-- 依存树渲染 -->
       <div class="alph-treebank-page__tree-wrapper">
         <DependencyTree
           :nodes="treeResource.nodes"
@@ -215,19 +219,18 @@ onMounted(() => {
         />
       </div>
 
-      <!-- 句子文本 -->
       <div class="alph-treebank-page__text">
         <p>{{ treeResource.text }}</p>
       </div>
 
-      <!-- 底部元信息 -->
       <div class="alph-treebank-page__footer">
         <span class="alph-treebank-page__meta">{{ footerMeta }}</span>
+        <span v-if="dataSource" class="alph-treebank-page__source-badge">{{ SOURCE_LABELS[dataSource] || dataSource }}</span>
       </div>
     </div>
 
     <div v-else class="alph-treebank-page__empty">
-      <p>选择一个文本开始浏览</p>
+      <p>Select a text to start browsing</p>
     </div>
   </div>
 </template>
@@ -328,6 +331,23 @@ onMounted(() => {
 
 .alph-treebank-page__error {
   color: var(--error);
+  gap: 12px;
+}
+
+.alph-treebank-page__retry {
+  padding: 6px 16px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  color: var(--on-surface);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.alph-treebank-page__retry:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
 }
 
 .alph-treebank-page__content {
@@ -418,14 +438,29 @@ onMounted(() => {
 }
 
 .alph-treebank-page__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
   padding: 12px 0;
   border-top: 1px solid var(--outline-variant);
-  text-align: center;
 }
 
 .alph-treebank-page__meta {
   font-size: 11px;
   color: var(--on-surface-variant);
   letter-spacing: 0.03em;
+}
+
+.alph-treebank-page__source-badge {
+  padding: 2px 8px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
 }
 </style>

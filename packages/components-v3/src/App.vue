@@ -50,8 +50,7 @@ import {
 } from './lib/wordlist-helpers.js'
 import { buildGrammarData } from './lib/resources-helpers.js'
 import { buildTreebankResource } from './lib/treebank-data.js'
-import { loadTreebankData } from './lib/treebank-loader.js'
-import aeneidTreebank from './fixtures/treebank-v21-phi0690-phi003-lat1.json'
+import { getSentence as getTreebankSentence } from './lib/treebank-service.js'
 
 const EMPTY_POPUP_STATES = {
   loading: { lemma: '', lang: '', title: 'Looking up', desc: 'Alpheios is querying lexical data.' },
@@ -106,12 +105,13 @@ const EMPTY_WORDLIST = {
 }
 
 const OFFICIAL_READER_URL = 'https://texts.alpheios.net/text/urn%3Acts%3AlatinLit%3Aphi0959.phi006.alpheios-text-lat1/passage/1.163-1.183'
-const POC_NATIVE_TREE = true
-const USE_TREEBANK_API = true // Use real API instead of fixture
+const USE_TREEBANK_API = true
 
-// Treebank API state
+// Treebank sentence state (loaded on demand via treebank-service)
 const treebankSentence = ref(null)
+const treebankSource = ref(null)
 const treebankLoading = ref(false)
+const treebankError = ref(null)
 
 const SETTINGS_SHELL = {
   tabs: [
@@ -339,8 +339,7 @@ function onSearchEnter (value) {
 const wl = useWordList()
 const infl = useInflections()
 const resources = useResources({
-  getLanguageCode: () => selectedLookupLang.value,
-  treebankCorpora: [aeneidTreebank]
+  getLanguageCode: () => selectedLookupLang.value
 })
 const settingsPageRef = ref(null)
 const authPageRef = ref(null)
@@ -416,16 +415,23 @@ async function loadTreebankFromAPI(docId, sentenceId) {
   if (!USE_TREEBANK_API) return null
 
   treebankLoading.value = true
+  treebankError.value = null
   try {
-    const sentence = await loadTreebankData({
-      docId,
-      sentenceId: String(sentenceId),
-      mode: 'api'
+    const { sentence, source } = await getTreebankSentence(docId, String(sentenceId), {
+      providers: ['local', 'api', 'cdn', 'embedded']
     })
+    if (!sentence) {
+      treebankSentence.value = null
+      treebankError.value = `Sentence ${sentenceId} of ${docId} is not available from any data source.`
+      return null
+    }
     treebankSentence.value = sentence
+    treebankSource.value = source
     return sentence
   } catch (err) {
     console.warn('[App] Treebank load failed:', err)
+    treebankSentence.value = null
+    treebankError.value = err.message
     return null
   } finally {
     treebankLoading.value = false
@@ -433,53 +439,26 @@ async function loadTreebankFromAPI(docId, sentenceId) {
 }
 
 function liveTreeFallback () {
-  if (POC_NATIVE_TREE) {
-    // Use API if enabled
-    if (USE_TREEBANK_API && treebankSentence.value) {
-      return {
-        ...buildTreebankResource(treebankSentence.value, { wordIds: [] }),
-        footerMeta: `${treebankSentence.value.cite} · ${treebankSentence.value.provider} · Loaded from API`,
-        officialReaderUrl: OFFICIAL_READER_URL,
-        isOfficialTextsPage: false,
-        suppressTree: false
-      }
-    }
-    // If API enabled but no data, show error
-    if (USE_TREEBANK_API) {
-      return {
-        ref: '',
-        textStrip: '',
-        nodes: [],
-        edges: [],
-        footerMeta: 'Failed to load from API',
-        treebankSrc: null,
-        officialReaderUrl: OFFICIAL_READER_URL,
-        isOfficialTextsPage: false,
-        suppressTree: false,
-        kind: 'error'
-      }
-    }
-    // Fallback to fixture only if API is disabled
+  if (USE_TREEBANK_API && treebankSentence.value) {
     return {
-      ...buildTreebankResource(aeneidTreebank[0], { wordIds: [] }),
-      footerMeta: `${aeneidTreebank[0].cite} · ${aeneidTreebank[0].provider} · Fixture data (API disabled)`,
+      ...buildTreebankResource(treebankSentence.value, { wordIds: [] }),
       officialReaderUrl: OFFICIAL_READER_URL,
       isOfficialTextsPage: false,
       suppressTree: false
     }
   }
-  if (live.state.value === 'idle') {
+  if (USE_TREEBANK_API && treebankError.value) {
     return {
       ref: '',
       textStrip: '',
       nodes: [],
       edges: [],
-      footerMeta: 'Look up or select a word to load treebank data',
+      footerMeta: treebankError.value,
       treebankSrc: null,
       officialReaderUrl: OFFICIAL_READER_URL,
       isOfficialTextsPage: false,
       suppressTree: false,
-      kind: 'idle'
+      kind: 'error'
     }
   }
   return {
@@ -487,12 +466,12 @@ function liveTreeFallback () {
     textStrip: '',
     nodes: [],
     edges: [],
-    footerMeta: 'No treebank for this page',
+    footerMeta: 'Select a text to load treebank data',
     treebankSrc: null,
     officialReaderUrl: OFFICIAL_READER_URL,
     isOfficialTextsPage: false,
     suppressTree: false,
-    kind: 'no-metadata'
+    kind: 'idle'
   }
 }
 
@@ -505,9 +484,12 @@ const grammarPageData = computed(() => ({
   grammar: resources.grammarData.value || liveGrammarFallback()
 }))
 
-const treePageData = computed(() => ({
-  tree: resources.treeData.value || liveTreeFallback()
-}))
+const treePageData = computed(() => {
+  const tree = resources.treeData.value || liveTreeFallback()
+  // `loading` lets the tree panel show a spinner while a sentence request is
+  // in flight but keep the previous tree visible (the nodes branch wins).
+  return { tree: { ...tree, loading: !resources.treeData.value && treebankLoading.value } }
+})
 
 /* ── Trigger data fetches on page navigation ── */
 watch(() => uiStore.state.page, async (newPage) => {
@@ -558,13 +540,6 @@ onMounted(() => {
   onScopeDispose(() => { try { unwatch() } catch {} })
 })
 
-// Load initial treebank sentence from API
-onMounted(async () => {
-  if (USE_TREEBANK_API) {
-    // Load Homer Odyssey first sentence by index
-    await loadTreebankFromAPI('tlg0012.tlg002.perseus-grc1', 1)
-  }
-})
 
 
 /* ───── Surface visibility ───── */
